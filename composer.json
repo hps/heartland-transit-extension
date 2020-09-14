@@ -1,0 +1,18 @@
+{
+    "name": "hps/hps_transit",
+    "type": "magento-module",
+    "license": "Custom",
+    "description": "Take credit card payments and store cards in a PCI friendly way.",
+    "authors": [
+        {
+            "name": "Heartland Payment Systems",
+            "email": "EntApp_DevPortal@e-hps.com"
+        }
+    ],
+    "keywords": [
+        "openmage-module"
+    ],
+    "require": {
+        "globalpayments/php-sdk": "*"
+    }
+}

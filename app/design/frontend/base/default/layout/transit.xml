@@ -1,0 +1,134 @@
+<?xml version="1.0"?>
+
+<layout version="0.1.0">
+    <hps_transit_add_css>
+        <reference name="head">
+            <action method="addItem">
+                <type>skin_css</type>
+                <name>transit/css/hps-styles.css</name>
+            </action>
+        </reference>
+    </hps_transit_add_css>
+    <hps_transit_add_js>
+        <reference name="head">
+            <!-- <action method="addJs"><file>transit/secure.submit-1.0.1.js</file></action> -->
+            <block type="core/text" name="hps.transit.js_library">
+                <action method="setText">
+                    <text>
+                        <![CDATA[
+                            <script type="text/javascript" src="https://api2.heartlandportico.com/TransIT.v1/token/2.1/transit.js"></script>
+                        ]]>
+                    </text>
+                </action>
+            </block>
+            <action method="addJs"><file>transit/checkout-form.js</file></action>
+            <action method="addJs"><file>transit/masterpass/lightbox.js</file></action>
+        </reference>
+        <reference name="before_body_end">
+            <block type="hps_transit/masterpass_client_js" name="hps_transit_masterpass_js" />
+        </reference>
+    </hps_transit_add_js>
+
+    <opc_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </opc_index_index>
+    <onestepcheckout_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </onestepcheckout_index_index>
+    <checkout_onepage_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </checkout_onepage_index>
+    <onepagecheckout_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </onepagecheckout_index_index>
+    <aw_onestepcheckout_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </aw_onestepcheckout_index_index>
+    <checkout_multishipping_billing>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </checkout_multishipping_billing>
+    <iwd_opc_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </iwd_opc_index_index>
+	<firecheckout_index_index>
+        <update handle="hps_transit_add_js" />
+        <update handle="hps_transit_add_css" />
+    </firecheckout_index_index>
+    <customer_account>
+        <reference name="customer_account_navigation">
+          <action method="addLink" >
+            <name>save_token</name>
+            <path>transit/storedcard/index</path>
+            <label>Manage Cards</label>
+          </action>
+          <action method="addLink" translate="label" module="hps_transit" ifconfig="payment/hps_masterpass/active">
+            <name>masterpass_connect</name>
+            <path>transit/masterpass/connect</path>
+            <label>MasterPass</label>
+          </action>
+        </reference>
+    </customer_account>
+
+    <hps_transit_storedcard_index>
+        <update handle="customer_account" />
+        <reference name="my.account.wrapper">
+            <block type="core/template" name="hps_transit_content" template="transit/storedcards.phtml"/>
+        </reference>
+        <update handle="hps_transit_add_css" />
+    </hps_transit_storedcard_index>
+
+    <hps_transit_masterpass_connect>
+        <update handle="customer_account" />
+        <reference name="my.account.wrapper">
+            <block type="hps_transit/masterpass_connect" name="hps_transit_masterpass_connect" template="transit/masterpass/connect.phtml" />
+        </reference>
+        <reference name="head">
+            <action method="addJs"><file>transit/masterpass/lightbox.js</file></action>
+        </reference>
+        <reference name="before_body_end">
+            <block type="hps_transit/masterpass_client_js" name="hps_transit_masterpass_js" />
+        </reference>
+    </hps_transit_masterpass_connect>
+
+    <hps_transit_masterpass_review translate="label">
+        <label>MasterPass Order Review Form</label>
+        <remove name="right"/>
+        <remove name="left"/>
+
+        <reference name="root">
+            <action method="setTemplate"><template>page/1column.phtml</template></action>
+        </reference>
+        <reference name="content">
+            <block type="hps_transit/masterpass_review" name="hps.transit.masterpass.review" template="transit/masterpass/review.phtml">
+                <block type="hps_transit/masterpass_review" name="hps.transit.review.shipping.method" as="shipping_method" template="transit/masterpass/review/shipping/method.phtml"/>
+                <block type="hps_transit/masterpass_review_details" name="hps.transit.masterpass.review.details" as="details" template="transit/masterpass/review/details.phtml">
+                    <action method="addItemRender"><type>default</type><block>checkout/cart_item_renderer</block><template>checkout/onepage/review/item.phtml</template></action>
+                    <action method="addItemRender"><type>grouped</type><block>checkout/cart_item_renderer_grouped</block><template>checkout/onepage/review/item.phtml</template></action>
+                    <action method="addItemRender"><type>configurable</type><block>checkout/cart_item_renderer_configurable</block><template>checkout/onepage/review/item.phtml</template></action>
+                    <block type="checkout/cart_totals" name="hps.transit.masterpass.review.details.totals" as="totals" template="checkout/onepage/review/totals.phtml"/>
+                </block>
+                <block type="checkout/agreements" name="hps.transit.masterpass.review.details.agreements" as="agreements" template="checkout/onepage/agreements.phtml"/>
+            </block>
+        </reference>
+        <reference name="head">
+            <action method="addItem"><type>skin_js</type><name>js/checkout/review.js</name></action>
+        </reference>
+        <block type="core/text_list" name="additional.product.info" />
+    </hps_transit_masterpass_review>
+
+    <hps_transit_masterpass_review_details>
+        <block type="hps_transit/masterpass_review_details" name="root" output="toHtml" template="transit/masterpass/review/details.phtml">
+            <action method="addItemRender"><type>default</type><block>checkout/cart_item_renderer</block><template>checkout/onepage/review/item.phtml</template></action>
+            <action method="addItemRender"><type>grouped</type><block>checkout/cart_item_renderer_grouped</block><template>checkout/onepage/review/item.phtml</template></action>
+            <action method="addItemRender"><type>configurable</type><block>checkout/cart_item_renderer_configurable</block><template>checkout/onepage/review/item.phtml</template></action>
+            <block type="checkout/cart_totals" name="hps.transit.masterpass.review.details.totals" as="totals" template="checkout/onepage/review/totals.phtml"/>
+        </block>
+    </hps_transit_masterpass_review_details>
+</layout>

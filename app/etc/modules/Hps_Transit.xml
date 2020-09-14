@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<config>
+    <modules>
+        <Hps_Transit>
+            <active>true</active>
+            <codePool>community</codePool>
+        </Hps_Transit>
+    </modules>
+</config>
