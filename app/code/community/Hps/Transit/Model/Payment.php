@@ -1,16 +1,26 @@
 <?php
 
+use GlobalPayments\Api\ServicesConfig;
+use GlobalPayments\Api\ServicesContainer;
+use GlobalPayments\Api\Entities\Address;
+use GlobalPayments\Api\Entities\Transaction;
+use GlobalPayments\Api\Entities\Enums\Environment;
+use GlobalPayments\Api\Entities\Enums\GatewayProvider;
+use GlobalPayments\Api\Entities\Exceptions\ApiException;
+use GlobalPayments\Api\PaymentMethods\CreditCardData;
+
 /**
  * @category   Hps
  * @package    Hps_Transit
  * @copyright  Copyright (c) 2015 Heartland Payment Systems (https://www.magento.com)
- * @license    https://github.com/hps/transit-magento-extension/blob/master/LICENSE  Custom License
+ * @license    https://github.com/SecureSubmit/heartland-magento-extension/blob/master/LICENSE  Custom License
  */
 class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 {
     const FRAUD_TEXT_DEFAULT              = '%s';
     const FRAUD_VELOCITY_ATTEMPTS_DEFAULT = 3;
     const FRAUD_VELOCITY_TIMEOUT_DEFAULT  = 10;
+    const CHECKOUT_SESSION_MODEL_PATH     = 'checkout/session';
 
     protected $_code                        = 'hps_transit';
     protected $_isGateway                   = true;
@@ -33,13 +43,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
     protected $_use_iframes                 = null;
     protected $_fraud_velocity_attempts     = null;
     protected $_fraud_velocity_timeout      = null;
-
-    /**
-     * Fields that should be replaced in debug with '***'
-     *
-     * @var array
-     */
-    protected $_debugReplacePrivateDataKeys = array('SecretAPIKey');
 
     public function validate()
     {
@@ -94,157 +97,61 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
     {
         $this->getFraudSettings();
 
-        $order = $payment->getOrder(); /* @var $order Mage_Sales_Model_Order */
+        /* @var $order Mage_Sales_Model_Order */
+        $order = $payment->getOrder();
         $multiToken = false;
         $cardData = null;
         $additionalData = new Varien_Object($payment->getAdditionalData() ? unserialize($payment->getAdditionalData()) : null);
         $secureToken = $additionalData->getTransitToken() ? $additionalData->getTransitToken() : null;
-        $saveCreditCard = !! (bool)$additionalData->getCcSaveFuture();
+        $saveCreditCard = (bool) $additionalData->getCcSaveFuture();
         $customerId = $additionalData->getCustomerId();
-        $giftService = $this->_getGiftService();
-        $giftCardNumber = $additionalData->getGiftcardNumber();
-        $giftCardPin = filter_var($additionalData->getGiftcardPin(),FILTER_VALIDATE_INT, ARRAY('default' => FILTER_NULL_ON_FAILURE));
-        $ccaData = $additionalData->getCcaData();
-
-        if ($giftCardNumber) {
-            // 1. check balance
-            $giftcard = new HpsGiftCard();
-            $giftcard->number = $giftCardNumber;
-            $giftcard->pin = $giftCardPin;
-            $giftResponse = $giftService->balance($giftcard);
-
-            // 2. is balance > amount?
-            if ($giftResponse->balanceAmount > $amount) {
-                //  2.yes. process full to gift
-                try {
-                    $this->checkVelocity();
-
-                    if (strpos($this->getConfigData('secretapikey'), '_cert_') !== false) {
-                        $giftresp = $giftService->sale($giftcard, 10.00);
-                    } else {
-                        $giftresp = $giftService->sale($giftcard, $amount);
-                    }
-
-                    $order->addStatusHistoryComment('Used Heartland Gift Card ' . $giftCardNumber . ' for amount $' . $amount . '. [full payment]');
-                    $payment->setTransactionAdditionalInfo(Mage_Sales_Model_Order_Payment_Transaction::RAW_DETAILS,
-                        array(
-                            'gift_card_number' => $giftCardNumber,
-                            'gift_card_transaction' => $giftresp->transactionId,
-                            'gift_card_amount_charged' => $amount));
-
-                    // just adds a trackable type for the DB
-                    $giftresp->cardType = 'Gift';
-                    // \Hps_Transit_Model_Payment::closeTransaction
-                    $this->closeTransaction($payment,$amount,$giftresp);
-                    return $this;
-                } catch (Exception $e) {
-                    $this->updateVelocity($e);
-
-                    Mage::logException($e);
-                    $payment->setStatus(self::STATUS_ERROR);
-                    $this->throwUserError($e->getMessage(), null, true);
-                }
-            } else {
-                //  2.no. process full gift card amt and card process remainder
-                try {
-                    $this->checkVelocity();
-
-                    $giftresp = $giftService->sale($giftcard, $giftResponse->balanceAmount);
-                    $order->addStatusHistoryComment('Used Heartland Gift Card ' . $giftCardNumber . ' for amount $' . $giftResponse->balanceAmount . '. [partial payment]')->save();
-                    $payment->setTransactionAdditionalInfo(Mage_Sales_Model_Order_Payment_Transaction::RAW_DETAILS,
-                        array(
-                            'gift_card_number' => $giftCardNumber,
-                            'gift_card_transaction' => $giftresp->transactionId,
-                            'gift_card_amount_charged' => $giftResponse->balanceAmount));
-                    $payment->setAmount($giftResponse->balanceAmount)->save();
-                    $amount = $amount - $giftResponse->balanceAmount; // remainder
-                } catch (Exception $e) {
-                    $this->updateVelocity($e);
-
-                    Mage::logException($e);
-                    $payment->setStatus(self::STATUS_ERROR);
-                    $this->throwUserError($e->getMessage(), null, true);
-                }
-                // 3. TODO: if the card payment fails later, refund the gift transaction
-            }
-        }
 
         $cardType = $payment->getCcType();
         if ($saveCreditCard) {
             $multiToken = true;
-            $cardData = new HpsCreditCard();
+            $cardData = new CreditCardData();
             $cardData->number = $payment->getCcLast4();
             $cardData->expYear = $payment->getCcExpYear();
             $cardData->expMonth = $payment->getCcExpMonth();
         }
 
-        $chargeService = $this->_getChargeService();
-        $cardHolder = $this->_getCardHolderData($order);
-        $details = $this->_getTxnDetailsData($order);
-        $cardOrToken = new HpsTokenData();
-        $cardOrToken->tokenValue = $secureToken;
-        $secureEcommerce = $this->getSecureEcommerce($ccaData, $cardType);
+        $this->_configureSDK();
+        $address = $this->_getCardHolderAddress($order);
+        $memo = $this->_getTxnMemo($order);
+        $invoiceNumber = $this->_getTxnInvoiceNumber($order);
+        $customerId = $this->_getTxnCustomerId($order);
+
+        $cardOrToken = new CreditCardData();
+        $cardOrToken->token = $secureToken;
+        $cardOrToken->cardHolderName = $this->_getCardHolderName($order);
 
         try {
             $this->checkVelocity();
 
-            $captureBuilder = false;
             $builder = null;
-            if ($capture) {
-                if ($payment->getCcTransId()) {
-                    $builder = $chargeService->capture()
-                        ->withTransactionId($payment->getCcTransId())
-                        ->withAmount();
-                    $captureBuilder = true;
-                } else {
-                    $builder = $chargeService->charge()
-                        ->withAmount($amount)
-                        ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                        ->withToken($cardOrToken)
-                        ->withCardHolder($cardHolder)
-                        ->withRequestMultiUseToken($multiToken)
-                        ->withDetails($details);
-                }
+            if ($capture && $payment->getCcTransId()) {
+                $builder = Transaction::fromId($payment->getCcTransId())->capture();
             } else {
-                $builder = $chargeService->authorize()
-                    ->withAmount($amount)
+                $requestType = $capture ? 'charge' : 'authorize';
+                $builder = $cardOrToken->{$requestType}($amount)
                     ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                    ->withToken($cardOrToken)
-                    ->withCardHolder($cardHolder)
+                    ->withAddress($address)
                     ->withRequestMultiUseToken($multiToken)
-                    ->withDetails($details);
-            }
-
-            if (false === $captureBuilder && null !== $secureEcommerce) {
-                $builder = $builder->withSecureEcommerce($secureEcommerce);
+                    ->withDescription($memo)
+                    ->withInvoiceNumber($invoiceNumber)
+                    ->withCustomerId($customerId);
             }
 
             $response = $builder->execute();
+            
+            if ($response->responseCode !== '00') {
+                // TODO: move this
+                // $this->updateVelocity($e);
 
-            $this->_debugChargeService($chargeService);
-            // \Hps_Transit_Model_Payment::closeTransaction
-            $this->closeTransaction($payment, $amount, $response);
+                if (!$this->_allow_fraud || $response->responseCode !== 'FR') {
+                    throw new ApiException($this->mapResponseCodeToFriendlyMessage($response->responseCode));
+                }
 
-            if ($giftCardNumber) {
-                $order->addStatusHistoryComment('Remaining amount to be charged to credit card  ' .$this->_formatAmount((string)$amount) . '. [partial payment]')->save();
-            }
-
-            if ($multiToken) {
-                $this->saveMultiUseToken($response, $cardData, $customerId, $cardType);
-            }
-        } catch (HpsCreditException $e) {
-            $this->updateVelocity($e);
-
-            Mage::logException($e);
-            $this->_debugChargeService($chargeService, $e);
-
-            // refund gift (if used)
-            if ($giftCardNumber) {
-                $order->addStatusHistoryComment('Reversed Heartland Gift Card ' . $giftCardNumber . ' for amount $' . $giftResponse->balanceAmount . '. [full reversal]')->save();
-                $giftResponse = $giftService->reverse($giftcard, $giftResponse->balanceAmount);
-            }
-
-            if ($this->_allow_fraud && $e->getCode() == HpsExceptionCodes::POSSIBLE_FRAUD_DETECTED) {
                 // we can skip the card saving if it fails for possible fraud there will be no token.
                 if ($this->_email_fraud && $this->_fraud_address != '') {
                     // EMAIL THE PEOPLE
@@ -257,23 +164,173 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                 }
 
                 $this->closeTransaction($payment,$amount,$e);
-            } else {
-                $payment->setStatus(self::STATUS_ERROR);
 
-                if ($e->getCode() == HpsExceptionCodes::POSSIBLE_FRAUD_DETECTED) {
-                    $this->throwUserError($this->_fraud_text, null, true);
-                } else {
-                    $this->throwUserError($e->getMessage(), null, true);
-                }
+                return;
             }
-        } catch (HpsException $e) {
-            $this->_debugChargeService($chargeService, $e);
+
+            $this->_debugChargeService();
+            // \Hps_Transit_Model_Payment::closeTransaction
+            $this->closeTransaction($payment, $amount, $response);
+
+            if ($multiToken) {
+                $this->saveMultiUseToken($response, $cardData, $customerId, $cardType);
+            }
+        } catch (ApiException $e) {
+            $this->_debugChargeService($e);
             $payment->setStatus(self::STATUS_ERROR);
             $this->throwUserError($e->getMessage(), null, true);
         } catch (Exception $e) {
-            $this->_debugChargeService($chargeService, $e);
+            $this->_debugChargeService($e);
             Mage::logException($e);
             $payment->setStatus(self::STATUS_ERROR);
+            $this->throwUserError($e->getMessage());
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * @param Varien_Object|Mage_Sales_Model_Order_Payment $payment
+     * @param float $amount
+     * @return Hps_Transit_Model_Payment
+     */
+    public function refund(Varien_Object $payment, $amount)
+    {
+        $transactionDetails = $this->getTransactionDetails($payment);
+        if ($this->canVoid($payment) && $this->transactionActiveOnGateway($transactionDetails)) {
+            if ($this->getCurrentAuthorizationAmount($transactionDetails) > $amount) {
+                $this->_reversal($payment, $transactionDetails, $amount);
+            } else {
+                $this->void($payment);
+            }
+        } else {
+            $this->_refund($payment, $amount);
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * Void payment abstract method
+     *
+     * @param Varien_Object $payment
+     *
+     * @return Hps_Transit_Model_Payment
+     */
+    public function void(Varien_Object $payment)
+    {
+        $transactionId = null;
+
+        if (false !== ($parentId = $this->getParentTransactionId($payment))) {
+            $transactionId = $parentId;
+        } else {
+            $transactionId = $payment->getCcTransId();
+        }
+
+        try {
+            $voidResponse = Transaction::fromId($transactionId)->void()->execute();
+            $payment
+                ->setTransactionId($voidResponse->transactionId)
+                ->setParentTransactionId($transactionId)
+                ->setIsTransactionClosed(1)
+                ->setShouldCloseParentTransaction(1);
+        } catch (ApiException $e) {
+            $this->_debugChargeService($e);
+            $this->throwUserError($e->getMessage());
+        } catch (Exception $e) {
+            $this->_debugChargeService($e);
+            Mage::logException($e);
+            $this->throwUserError(Mage::helper('hps_transit')->__('An unexpected error occurred. Please try again or contact a system administrator.'));
+        }
+
+        return $this;
+    }
+
+    /**
+     * @param Varien_Object|Mage_Sales_Model_Order_Payment $payment
+     * @param $amount
+     * @return Hps_Transit_Model_Payment
+     */
+    public function _refund(Varien_Object $payment, $amount)
+    {
+        $transactionId = $payment->getCcTransId();
+        /* @var $order Mage_Sales_Model_Order */
+        $order = $payment->getOrder();
+        $address = $this->_getCardHolderAddress($order);
+        $memo = $this->_getTxnMemo($order);
+        $invoiceNumber = $this->_getTxnInvoiceNumber($order);
+        $customerId = $this->_getTxnCustomerId($order);
+
+        try {
+            $refundResponse = Transaction::fromId($transactionId)->refund($amount)
+                ->withCurrency(strtolower($order->getBaseCurrencyCode()))
+                ->withAddress($address)
+                ->withDescription($memo)
+                ->withInvoiceNumber($invoiceNumber)
+                ->withCustomerId($customerId)
+                ->execute();
+            $payment
+                ->setTransactionId($refundResponse->transactionId)
+                ->setParentTransactionId($transactionId)
+                ->setIsTransactionClosed(1)
+                ->setShouldCloseParentTransaction(1);
+        } catch (ApiException $e) {
+            $this->_debugChargeService($e);
+            $this->throwUserError($e->getMessage());
+        } catch (Exception $e) {
+            $this->_debugChargeService($e);
+            Mage::logException($e);
+            $this->throwUserError($e->getMessage());
+        }
+
+        return $this;
+    }
+
+
+    /**
+     * @param Varien_Object|Mage_Sales_Model_Order_Payment  $payment
+     * @param HpsReportTransactionDetails                   $transactionDetails
+     * @param float                                         $newAuthAmount
+     * @return Hps_Transit_Model_Payment
+     */
+    public function _reversal(Varien_Object $payment, HpsReportTransactionDetails $transactionDetails, $newAuthAmount)
+    {
+
+        $transactionId = null;
+
+        if (false !== ($parentId = $this->getParentTransactionId($payment))) {
+            $transactionId = $parentId;
+        } else {
+            $transactionId = $payment->getCcTransId();
+        }
+        $newAuthAmount = $this->getCurrentAuthorizationAmount($transactionDetails) - $newAuthAmount;
+        /* @var $order Mage_Sales_Model_Order */
+        $order = $payment->getOrder();
+        $memo = $this->_getTxnMemo($order);
+        $invoiceNumber = $this->_getTxnInvoiceNumber($order);
+        $customerId = $this->_getTxnCustomerId($order);
+
+        try {
+            $reverseResponse = Transaction::fromId($transactionId)->reverse($transactionDetails->authorizedAmount)
+                ->withCurrency(strtolower($order->getBaseCurrencyCode()))
+                ->withDescription($memo)
+                ->withInvoiceNumber($invoiceNumber)
+                ->withCustomerId($customerId)
+                ->withAuthAmount($newAuthAmount)
+                ->execute();
+            $payment
+                ->setTransactionId($reverseResponse->transactionId)
+                ->setParentTransactionId($transactionId)
+                ->setIsTransactionClosed(1)
+                ->setShouldCloseParentTransaction(1);
+        } catch (ApiException $e) {
+            $this->_debugChargeService($e);
+            $this->throwUserError($e->getMessage());
+        } catch (Exception $e) {
+            $this->_debugChargeService($e);
+            Mage::logException($e);
             $this->throwUserError($e->getMessage());
         }
 
@@ -339,47 +396,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
     }
 
-    protected function getSecureEcommerce($ccaData, $cardType)
-    {
-        if ($this->getConfigData('enable_threedsecure')
-            && !empty($ccaData) && !empty($ccaData['actionCode'])
-            && in_array($ccaData['actionCode'], array('SUCCESS', 'NOACTION'))
-        ) {
-            $dataSource = '';
-            switch ($cardType) {
-            case 'visa':
-                $dataSource = 'Visa 3DSecure';
-                break;
-            case 'mastercard':
-                $dataSource = 'MasterCard 3DSecure';
-                break;
-            case 'discover':
-                $dataSource = 'Discover 3DSecure';
-                break;
-            case 'amex':
-                $dataSource = 'AMEX 3DSecure';
-                break;
-            }
-            $cavv = !empty($ccaData['cavv'])
-                ? $ccaData['cavv']
-                : '';
-            $eciFlag = !empty($ccaData['eci'])
-                ? substr($ccaData['eci'], 1)
-                : '';
-            $xid = !empty($ccaData['xid'])
-                ? $ccaData['xid']
-                : '';
-            $secureEcommerce = new HpsSecureEcommerce();
-            $secureEcommerce->type       = '3DSecure';
-            $secureEcommerce->dataSource = $dataSource;
-            $secureEcommerce->data       = $cavv;
-            $secureEcommerce->eciFlag    = $eciFlag;
-            $secureEcommerce->xid        = $xid;
-            return $secureEcommerce;
-        }
-
-        return false;
-    }
     protected function _formatAmount($amount)
     {
         return Mage::helper('core')->currency($amount, true, false);
@@ -416,7 +432,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
     protected function maybeResetVelocityTimeout()
     {
-        $timeoutSeconds = $this->_fraud_velocity_timeout * 60;
         $timeoutExpiration = (int)$this->getVelocityVar('TimeoutExpiration');
 
         if (time() < $timeoutExpiration) {
@@ -443,7 +458,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         if ($count >= $this->_fraud_velocity_attempts
             && time() < $timeoutExpiration) {
             sleep(5);
-            throw new HpsException(sprintf($this->_fraud_text, $issuerResponse));
+            throw new ApiException(sprintf($this->_fraud_text, $issuerResponse));
         }
     }
 
@@ -470,19 +485,19 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
     protected function getVelocityVar($var)
     {
-        return Mage::getSingleton('checkout/session')
+        return Mage::getSingleton(self::CHECKOUT_SESSION_MODEL_PATH)
             ->getData($this->getVelocityVarPrefix() . $var);
     }
 
     protected function setVelocityVar($var, $data = null)
     {
-        return Mage::getSingleton('checkout/session')
+        return Mage::getSingleton(self::CHECKOUT_SESSION_MODEL_PATH)
             ->setData($this->getVelocityVarPrefix() . $var, $data);
     }
 
     protected function unsVelocityVar($var)
     {
-        return Mage::getSingleton('checkout/session')
+        return Mage::getSingleton(self::CHECKOUT_SESSION_MODEL_PATH)
             ->unsetData($this->getVelocityVarPrefix() . $var);
     }
 
@@ -511,28 +526,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         return $remoteIP;
     }
 
-
-    /**
-     * @param Varien_Object|Mage_Sales_Model_Order_Payment $payment
-     * @param float $amount
-     * @return Hps_Transit_Model_Payment
-     */
-    public function refund(Varien_Object $payment, $amount)
-    {
-        $transactionDetails = $this->getTransactionDetails($payment);
-        if ($this->canVoid($payment) && $this->transactionActiveOnGateway($transactionDetails)) {
-            if ($this->getCurrentAuthorizationAmount($transactionDetails) > $amount) {
-                $this->_reversal($payment, $transactionDetails, $amount);
-            } else {
-                $this->void($payment);
-            }
-        } else {
-            $this->_refund($payment, $amount);
-        }
-
-        return $this;
-    }
-
     public function getCurrentAuthorizationAmount($transactionDetails)
     {
         if (floatval($transactionDetails->settlementAmount) > 0) {
@@ -558,6 +551,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
     public function transactionActiveOnGateway($transactionDetail)
     {
+        // TODO: CHECK THIS
         return $transactionDetail->transactionStatus == 'A';
     }
 
@@ -575,131 +569,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
     }
 
-
-    /**
-     * Void payment abstract method
-     *
-     * @param Varien_Object $payment
-     *
-     * @return Hps_Transit_Model_Payment
-     */
-    public function void(Varien_Object $payment)
-    {
-        $transactionId = null;
-
-        if (false !== ($parentId = $this->getParentTransactionId($payment))) {
-            $transactionId = $parentId;
-        } else {
-            $transactionId = $payment->getCcTransId();
-        }
-
-        $chargeService = $this->_getChargeService();
-
-        try {
-            $voidResponse = $chargeService->void()
-                ->withTransactionId($transactionId)
-                ->execute();
-            $payment
-                ->setTransactionId($voidResponse->transactionId)
-                ->setParentTransactionId($transactionId)
-                ->setIsTransactionClosed(1)
-                ->setShouldCloseParentTransaction(1);
-        } catch (HpsException $e) {
-            $this->_debugChargeService($chargeService, $e);
-            $this->throwUserError($e->getMessage());
-        } catch (Exception $e) {
-            $this->_debugChargeService($chargeService, $e);
-            Mage::logException($e);
-            $this->throwUserError(Mage::helper('hps_transit')->__('An unexpected error occurred. Please try again or contact a system administrator.'));
-        }
-
-        return $this;
-    }
-
-    /**
-     * @param Varien_Object|Mage_Sales_Model_Order_Payment $payment
-     * @param $amount
-     * @return Hps_Transit_Model_Payment
-     */
-    public function _refund(Varien_Object $payment, $amount)
-    {
-        $transactionId = $payment->getCcTransId();
-        $order = $payment->getOrder(); /* @var $order Mage_Sales_Model_Order */
-        $chargeService = $this->_getChargeService();
-        $cardHolder = $this->_getCardHolderData($order);
-        $details = $this->_getTxnDetailsData($order);
-
-        try {
-            $refundResponse = $chargeService->refund()
-                ->withAmount($amount)
-                ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                ->withTransactionId($transactionId)
-                ->withCardHolder($cardHolder)
-                ->withDetails($details)
-                ->execute();
-            $payment
-                ->setTransactionId($refundResponse->transactionId)
-                ->setParentTransactionId($transactionId)
-                ->setIsTransactionClosed(1)
-                ->setShouldCloseParentTransaction(1);
-        } catch (HpsException $e) {
-            $this->_debugChargeService($chargeService, $e);
-            $this->throwUserError($e->getMessage());
-        } catch (Exception $e) {
-            $this->_debugChargeService($chargeService, $e);
-            Mage::logException($e);
-            $this->throwUserError($e->getMessage());
-        }
-
-        return $this;
-    }
-
-
-    /**
-     * @param Varien_Object|Mage_Sales_Model_Order_Payment  $payment
-     * @param HpsReportTransactionDetails                   $transactionDetails
-     * @param float                                         $newAuthAmount
-     * @return Hps_Transit_Model_Payment
-     */
-    public function _reversal(Varien_Object $payment, HpsReportTransactionDetails $transactionDetails, $newAuthAmount)
-    {
-
-        $transactionId = null;
-
-        if (false !== ($parentId = $this->getParentTransactionId($payment))) {
-            $transactionId = $parentId;
-        } else {
-            $transactionId = $payment->getCcTransId();
-        }
-        $newAuthAmount = $this->getCurrentAuthorizationAmount($transactionDetails) - $newAuthAmount;
-        $order = $payment->getOrder();
-        /* @var $order Mage_Sales_Model_Order */
-        $chargeService = $this->_getChargeService();
-        $details = $this->_getTxnDetailsData($order);
-        try {
-            $reverseResponse = $chargeService->reverse()
-                ->withTransactionId($transactionId)
-                ->withAmount($transactionDetails->authorizedAmount)
-                ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                ->withDetails($details)
-                ->withAuthAmount($newAuthAmount)
-                ->execute();
-            $payment
-                ->setTransactionId($reverseResponse->transactionId)
-                ->setParentTransactionId($transactionId)
-                ->setIsTransactionClosed(1)
-                ->setShouldCloseParentTransaction(1);
-        } catch (HpsException $e) {
-            $this->_debugChargeService($chargeService, $e);
-            $this->throwUserError($e->getMessage());
-        } catch (Exception $e) {
-            $this->_debugChargeService($chargeService, $e);
-            Mage::logException($e);
-            $this->throwUserError($e->getMessage());
-        }
-
-        return $this;
-    }
     /**
      * @param null|Mage_Sales_Model_Quote $quote
      * @return bool
@@ -710,7 +579,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             return false;
         }
 
-        return $this->getConfigData('secretapikey', ($quote ? $quote->getStoreId() : null))
+        return $this->getConfigData('transaction_key', ($quote ? $quote->getStoreId() : null))
             && parent::isAvailable($quote);
     }
 
@@ -746,50 +615,12 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             $details['transit_token'] = $data->getData('transit_token');
         }
 
-        if ($data->getData('giftcard_number')) {
-            $details['giftcard_number'] = $data->getData('giftcard_number');
-        }
-
-        if ($data->getData('giftcard_pin')) {
-            $details['giftcard_pin'] = $data->getData('giftcard_pin');
-        }
-
-        if ($data->getData('giftcard_skip_cc')) {
-            $details['giftcard_skip_cc'] = $data->getData('giftcard_skip_cc') === 'true';
-        }
-
         if ($data->getData('use_credit_card')) {
             $details['use_credit_card'] = 1;
         }
 
         if ($data->getData('customer_id')) {
             $details['customer_id'] = $data->getData('customer_id');
-        }
-
-        $ccaData = array();
-
-        if ($data->getData('cca_data_action_code')) {
-            $ccaData['actionCode'] = $data->getData('cca_data_action_code');
-        }
-
-        if ($data->getData('cca_data_cavv')) {
-            $ccaData['cavv'] = $data->getData('cca_data_cavv');
-        }
-
-        if ($data->getData('cca_data_eci')) {
-            $ccaData['eci'] = $data->getData('cca_data_eci');
-        }
-
-        if ($data->getData('cca_data_xid')) {
-            $ccaData['xid'] = $data->getData('cca_data_xid');
-        }
-
-        if ($data->getData('cca_data_token')) {
-            $ccaData['token'] = $data->getData('cca_data_token');
-        }
-
-        if (array() !== $ccaData) {
-            $details['cca_data'] = $ccaData;
         }
 
         if (!empty($details)) {
@@ -828,12 +659,9 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
     }
 
-    /**
-     * @return HpsCreditService
-     */
-    protected function _getChargeService()
+    protected function _configureSDK()
     {
-        $config = new HpsServicesConfig();
+        $config = new ServicesConfig();
 
         // Support HTTP proxy
         if (Mage::getStoreConfig('payment/hps_transit/use_http_proxy')) {
@@ -844,77 +672,59 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             );
         }
 
-        $config->secretApiKey = $this->getConfigData('secretapikey');
+        $config->secretApiKey = 'skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A';
         $config->versionNumber = '1573';
         $config->developerId = '002914';
+        $config->gatewayProvider = GatewayProvider::PORTICO;
+        $config->environment = Environment::TEST;
 
-        return new HpsFluentCreditService($config);
-    }
-
-    protected function _getGiftService()
-    {
-        $config = new HpsServicesConfig();
-
-        // Support HTTP proxy
-        if (Mage::getStoreConfig('payment/hps_transit/use_http_proxy')) {
-            $config->useProxy = true;
-            $config->proxyOptions = array(
-                'proxy_host' => Mage::getStoreConfig('payment/hps_transit/http_proxy_host'),
-                'proxy_port' => Mage::getStoreConfig('payment/hps_transit/http_proxy_port'),
-            );
-        }
-
-        $config->secretApiKey = $this->getConfigData('secretapikey');
-        $config->versionNumber = '1573';
-        $config->developerId = '002914';
-
-        return new HpsGiftCardService($config);
+        ServicesContainer::configure($config);
     }
 
     /**
      * @param Mage_Sales_Model_Order $order
-     * @return HpsCardHolder
+     * @return Address
      */
-    protected function _getCardHolderData($order)
+    protected function _getCardHolderAddress($order)
     {
         $billing = $order->getBillingAddress();
 
-        $address = new HpsAddress();
-        $address->address = substr($billing->getStreet(1), 0, 40);        // Actual limit unknown..
+        $address = new Address();
+        $address->streetAddress1 = substr($billing->getStreet(1), 0, 40);        // Actual limit unknown..
         $address->city = substr($billing->getCity(), 0, 20);
-        $address->state = substr($billing->getRegion(), 0, 20);
-        $address->zip = substr(preg_replace('/[^A-Z0-9]/', '', strtoupper($billing->getPostcode())), 0, 9);
+        $address->province = substr($billing->getRegion(), 0, 20);
+        $address->postalCode = substr(preg_replace('/[^A-Z0-9]/', '', strtoupper($billing->getPostcode())), 0, 9);
         $address->country = $billing->getCountry();
 
-        $cardHolder = new HpsCardHolder();
-        $cardHolder->firstName = substr($billing->getData('firstname'), 0, 26);
-        $cardHolder->lastName = substr($billing->getData('lastname'), 0, 26);
-        $cardHolder->phone = substr(preg_replace('/[^0-9]/', '', $billing->getTelephone()), 0, 10);
-        $cardHolder->emailAddress = substr($billing->getData('email'), 0, 40);
-        $cardHolder->address = $address;
-
-        return $cardHolder;
+        return $address;
     }
 
     /**
      * @param Mage_Sales_Model_Order $order
-     * @return HpsTransactionDetails
+     * @return string
      */
-    protected function _getTxnDetailsData($order)
+    protected function _getCardHolderName($order)
+    {
+        $billing = $order->getBillingAddress();
+
+        $firstName = substr($billing->getData('firstname'), 0, 26);
+        $lastName = substr($billing->getData('lastname'), 0, 26);
+
+        return sprintf('%s %s', $firstName, $lastName);
+    }
+
+
+    /**
+     * @param Mage_Sales_Model_Order $order
+     * @return string
+     */
+    protected function _getTxnMemo($order)
     {
         $memo = array();
-        $ip = '';
-
-        if (isset($_SERVER['REMOTE_ADDR'])) {
-            $ip = $_SERVER['REMOTE_ADDR'];
-        }
-
-        if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ip = $_SERVER['HTTP_X_FORWARDED_FOR'];
-        }
+        $ip = $this->getRemoteIP();
 
         if ($ip) {
-            $memo[] = 'Customer IP Address: '.$ip;
+            $memo[] = 'Customer IP Address: ' . $ip;
         }
 
         if (isset($_SERVER['HTTP_USER_AGENT'])) {
@@ -922,26 +732,36 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
 
         $memo = implode(', ', $memo);
-        $details = new HpsTransactionDetails();
-        $details->memo = substr($memo, 0, 200);                           // Actual limit unknown..
-        $details->invoiceNumber = $order->getIncrementId();
-        $details->customerId = substr($order->getCustomerEmail(), 0, 25); // Actual limit unknown..
-
-        return $details;
+        return substr($memo, 0, 200);
     }
 
     /**
-     * @param HpsCreditService $chargeService
+     * @param Mage_Sales_Model_Order $order
+     * @return string
+     */
+    protected function _getTxnInvoiceNumber($order)
+    {
+        return $order->getIncrementId();
+    }
+
+    /**
+     * @param Mage_Sales_Model_Order $order
+     * @return string
+     */
+    protected function _getTxnCustomerId($order)
+    {
+        return substr($order->getCustomerEmail(), 0, 25);
+    }
+
+    /**
      * @param Exception|null $exception
      */
-    protected function _debugChargeService(HpsFluentCreditService $chargeService, $exception = null)
+    protected function _debugChargeService($exception = null)
     {
         if ($this->getDebugFlag()) {
             $debugData = array(
                 'store' => Mage::app()->getStore($this->getStore())->getFrontendName(),
                 'exception_message' => $exception ? get_class($exception).': '.$exception->getMessage() : '',
-                // 'last_request' => $chargeService->lastRequest,
-                // 'last_response' => $chargeService->lastResponse,
             );
             $this->_debug($debugData);
         }
@@ -971,5 +791,76 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
     public function getFormBlockType()
     {
         return Mage::app()->getStore()->isAdmin() ? $this->_formBlockTypeAdmin : $this->_formBlockType;
+    }
+
+    protected function mapResponseCodeToFriendlyMessage($responseCode) {
+        $result = '';
+
+        switch ($responseCode) {
+            case '02':
+            case '03':
+            case '04':
+            case '05':
+            case '41':
+            case '43':
+            case '44':
+            case '51':
+            case '56':
+            case '61':
+            case '62':
+            case '63':
+            case '65':
+            case '78':
+                $result = "The card was declined.";
+                break;
+            case '06':
+            case '07':
+            case '12':
+            case '15':
+            case '19':
+            case '52':
+            case '53':
+            case '57':
+            case '58':
+            case '76':
+            case '77':
+            case '96':
+            case 'EC':  
+                $result = "An error occurred while processing the card.";
+                break;
+            case '13':
+                $result = "Must be greater than or equal 0.";
+                break;
+            case '54':
+                $result = "The card has expired.";
+                break;
+            case '55':
+                $result = "The pin is invalid.";
+                break;
+            case '75':
+                $result = "Maximum number of pin retries exceeded.";
+                break;
+            case '80':
+                $result = "Card expiration date is invalid.";
+                break;
+            case '86':
+                $result = "Can't verify card pin number.";
+                break;
+            case 'EB':
+            case 'N7':
+                $result = "The card's security code is incorrect.";
+                break;
+            case '91':
+                $result = "The card issuer timed-out.";
+                break;
+            case 'FR':
+                $result = "Possible fraud detected";
+                break;
+            default:
+                $result = "An unknown issuer error has occurred.";
+                break;
+        }
+
+        return $result;
     }
 }

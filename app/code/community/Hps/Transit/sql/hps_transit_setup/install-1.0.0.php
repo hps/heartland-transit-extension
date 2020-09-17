@@ -63,10 +63,12 @@ $table = $installer->getConnection()
             'hps_transit/storedcard',
             'customer_id',
             'customer/entity',
-            'entity_id'),
+            'entity_id'
+        ),
         'customer_id', 
         $installer->getTable(
-            'customer/entity'),
+            'customer/entity'
+        ),
         'entity_id',
         Varien_Db_Ddl_Table::ACTION_CASCADE, 
         Varien_Db_Ddl_Table::ACTION_CASCADE

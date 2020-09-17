@@ -132,10 +132,8 @@ li>label.hps_transit_stored_card_label,
   font-weight: 600;
 }
 
-#heartland-frame-cardExpiration,
-#heartland-frame-cardNumber,
-#heartland-frame-cardCvv {
-  height:50px !important;
+#hps_transit_cc_form iframe {
+  min-height:50px !important;
   width:100%;
 }
 

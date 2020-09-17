@@ -6,13 +6,13 @@
     "authors": [
         {
             "name": "Heartland Payment Systems",
-            "email": "EntApp_DevPortal@e-hps.com"
+            "email": "developers@heartland.us"
         }
     ],
     "keywords": [
         "openmage-module"
     ],
     "require": {
-        "globalpayments/php-sdk": "*"
+        "globalpayments/php-sdk": "dev-TransIT_Certification"
     }
 }

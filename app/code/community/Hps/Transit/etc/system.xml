@@ -40,23 +40,58 @@
                             <show_in_store>1</show_in_store>
                         </title>
                         <!-- Authentication -->
-                        <publicapikey translate="label">
-                            <label>Public Api Key</label>
+                        <merchant_id translate="label">
+                            <label>Merchant ID</label>
                             <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
                             <sort_order>10</sort_order>
                             <show_in_default>1</show_in_default>
                             <show_in_website>1</show_in_website>
                             <show_in_store>1</show_in_store>
-                        </publicapikey>
-                        <secretapikey translate="label">
-                            <label>Secret Api Key</label>
+                        </merchant_id>
+                        <user_id translate="label">
+                            <label>MultiPass User ID</label>
                             <frontend_type>obscure</frontend_type>
                             <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
                             <sort_order>11</sort_order>
                             <show_in_default>1</show_in_default>
                             <show_in_website>1</show_in_website>
                             <show_in_store>1</show_in_store>
-                        </secretapikey>
+                        </user_id>
+                        <password translate="label">
+                            <label>Password</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <sort_order>12</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </password>
+                        <device_id translate="label">
+                            <label>Device ID</label>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <sort_order>13</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </device_id>
+                        <transaction_key translate="label">
+                            <label>Transaction Key</label>
+                            <frontend_type>obscure</frontend_type>
+                            <backend_model>adminhtml/system_config_backend_encrypted</backend_model>
+                            <sort_order>14</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </transaction_key>
+                        <is_production translate="label">
+                            <label>Live Mode</label>
+                            <frontend_type>select</frontend_type>
+                            <source_model>adminhtml/system_config_source_yesno</source_model>
+                            <sort_order>15</sort_order>
+                            <show_in_default>1</show_in_default>
+                            <show_in_website>1</show_in_website>
+                            <show_in_store>1</show_in_store>
+                        </is_production>
                         <!-- Payment -->
                         <cctypes translate="label">
                             <label>Credit Card Types</label>
@@ -89,16 +124,6 @@
                             Heartland Account must be configured for multi-use tokenization.]]>
                             </comment>
                         </allow_card_saving>
-                        <use_iframes translate="label">
-                            <label>Host the payment fields on Heartland's servers</label>
-                            <frontend_type>select</frontend_type>
-                            <source_model>adminhtml/system_config_source_yesno</source_model>
-                            <sort_order>31</sort_order>
-                            <show_in_default>1</show_in_default>
-                            <show_in_website>1</show_in_website>
-                            <show_in_store>1</show_in_store>
-                            <comment><![CDATA[Note: The customer will remain on your site throughout the checkout process, and there will be no redirect. This option only helps reduce your PCI scope.]]></comment>
-                        </use_iframes>
                         <!-- Anti-Fraud -->
                         <enable_anti_fraud translate="label">
                             <label>Enable Anti-Fraud Controls</label>

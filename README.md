@@ -1,6 +1,6 @@
 ## TransIT Magento Payment Gateway
 
-This extension allows Magento to use the Heartland Payment Systems Gateway. All card data is tokenized using Heartland's TransIT product.
+This extension allows Magento to use the Heartland Payment Systems Gateway. All card data is tokenized using Heartland's single-use tokenization solution.
 
 ## Installation
 
@@ -21,10 +21,6 @@ Example OpenMage LTS `composer.json`:
     }
 }
 ```
-
-## Usage
-
-Download the contents and extract to the root of your Magento install folder.
 
 ## Contributing
 

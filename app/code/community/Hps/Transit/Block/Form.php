@@ -16,47 +16,6 @@ class Hps_Transit_Block_Form extends Mage_Payment_Block_Form_Ccsave
         $this->setTemplate('transit/form.phtml');
     }
 
-    public function getCca()
-    {
-        if (!$this->getConfig('enable_threedsecure')) {
-            return false;
-        }
-
-        if (null !== $this->cca) {
-            return $this->cca;
-        }
-
-        $helper = Mage::helper('hps_transit/jwt');
-        $orderNumber = str_shuffle('abcdefghijklmnopqrstuvwxyz');
-        $data = array(
-            'jti' => str_shuffle('abcdefghijklmnopqrstuvwxyz'),
-            'iat' => time(),
-            'iss' => $this->getConfig('threedsecure_api_identifier'),
-            'OrgUnitId' => $this->getConfig('threedsecure_org_unit_id'),
-            'Payload' => array(
-                'OrderDetails' => array(
-                    'OrderNumber' => $orderNumber,
-                    // Centinel requires amounts in pennies
-                    'Amount' => 100 * Mage::getSingleton('checkout/cart')
-                        ->getQuote()
-                        ->getGrandTotal(),
-                    'CurrencyCode' => '840',
-                ),
-            ),
-        );
-        error_log(print_r($data, true));
-        $jwt = $helper::encode(
-            $this->getConfig('threedsecure_api_key'),
-            $data
-        );
-        $this->cca = array(
-            'jwt' => $jwt,
-            'orderNumber' => $orderNumber,
-        );
-
-        return $this->cca;
-    }
-
     protected function getConfig($key)
     {
         return Mage::getStoreConfig(sprintf('payment/hps_transit/%s', $key));

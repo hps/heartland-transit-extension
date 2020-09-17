@@ -5,7 +5,7 @@ $public_key = Mage::getModel('hps_transit/payment')->getConfigData('publicapikey
 $token_data_url = Mage::getUrl('transit/storedcard/getTokenData', array('_secure' => TRUE));
 $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow_card_saving');
 $allow_heartland_gift = Mage::getModel('hps_transit/payment')->getConfigData('allow_heartland_gift');
-$use_iframes = !!Mage::getModel('hps_transit/payment')->getConfigData('use_iframes');
+$use_iframes = true;
 $cca = $this->getCca();
 
 if ($_loggedIn && $allow_card_saving) {
@@ -96,9 +96,9 @@ TransITMagento.init({
     allowGift: false,
     useIframes: true,
     iframeTargets: {
-        cardNumber: '<?= $_code ?>_cc_number_iframe',
-        cardExpiration: '<?= $_code ?>_cc_exp_iframe',
-        cardCvv: '<?= $_code ?>_cc_cvv_iframe'
+        cardNumber: '#<?= $_code ?>_cc_number_iframe',
+        cardExpiration: '#<?= $_code ?>_cc_exp_iframe',
+        cardCvv: '#<?= $_code ?>_cc_cvv_iframe'
     }
 });
 

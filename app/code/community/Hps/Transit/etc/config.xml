@@ -33,11 +33,8 @@
                 <class>Hps_Transit_Model_Resource</class>
                 <entities>
                     <storedcard>
-                        <table>storedcard</table>
+                        <table>hps_transit_storedcard</table>
                     </storedcard>
-                    <report>
-                        <table>report_settlement</table>
-                    </report>
                 </entities>
             </hps_transit_resource>
         </models>
@@ -68,8 +65,12 @@
                 <cctypes>AE,VI,MC,DI,JCB</cctypes>
                 <useccv>1</useccv>
                 <min_order_total/>
-                <secretapikey backend_model="adminhtml/system_config_backend_encrypted" />
-                <publicapikey backend_model="adminhtml/system_config_backend_encrypted" />
+                <merchant_id backend_model="adminhtml/system_config_backend_encrypted" />
+                <user_id backend_model="adminhtml/system_config_backend_encrypted" />
+                <password backend_model="adminhtml/system_config_backend_encrypted" />
+                <device_id backend_model="adminhtml/system_config_backend_encrypted" />
+                <transaction_key backend_model="adminhtml/system_config_backend_encrypted" />
+                <is_production>no</is_production>
                 <fraud_velocity_attempts>3</fraud_velocity_attempts>
                 <fraud_velocity_timeout>10</fraud_velocity_timeout>
                 <use_http_proxy>0</use_http_proxy>
@@ -129,5 +130,16 @@
                 </args>
             </adminhtml>
         </routers>
+        <events>
+            <admin_system_config_changed_section_payment>
+                <observers>
+                    <hps_transit>
+                        <type>singleton</type>
+                        <model>hps_transit/observer</model>
+                        <method>requestTransactionKey</method>
+                    </hps_transit>
+                </observers>
+            </admin_system_config_changed_section_payment>
+        </events>
     </admin>
 </config>

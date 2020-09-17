@@ -4,7 +4,7 @@ if (!String.prototype.trim) {
   };
 }
 
-(function(window, document, undefined) {
+(function(window, document, _undefined) {
   var opcTokenSubmits = {};
   var THIS = {
     __data: {},
@@ -12,41 +12,40 @@ if (!String.prototype.trim) {
     init: function(options) {
       THIS.options = options;
       THIS.observeSavedCards();
-      THIS.observeGift();
 
       if (typeof Payment !== 'undefined') {
         window.payment = window.payment || {};
-        payment.secureSubmitPublicKey = THIS.options.publicKey;
-        payment.secureSubmitGetTokenDataUrl = THIS.options.tokenDataUrl;
+        payment.transitPublicKey = THIS.options.publicKey;
+        payment.transitGetTokenDataUrl = THIS.options.tokenDataUrl;
       } else if (document.getElementById('multishipping-billing-form')) {
-        THIS.secureSubmitMS = transitMultishipping(
+        THIS.transitMS = transitMultishipping(
           document.getElementById('multishipping-billing-form')
         );
-        THIS.secureSubmitMS.secureSubmitPublicKey = THIS.options.publicKey;
-        THIS.secureSubmitMS.secureSubmitGetTokenDataUrl =
+        THIS.transitMS.transitPublicKey = THIS.options.publicKey;
+        THIS.transitMS.transitGetTokenDataUrl =
           THIS.options.tokenDataUrl;
         document.observe('dom:loaded', function() {
           Event.observe('payment-continue', 'click', function(e) {
             Event.stop(e);
-            THIS.secureSubmitMS.save();
+            THIS.transitMS.save();
           });
         });
       }
 
       if (typeof OPC !== 'undefined') {
-        OPC.prototype.secureSubmitPublicKey = THIS.options.publicKey;
-        OPC.prototype.secureSubmitGetTokenDataUrl = THIS.options.tokenDataUrl;
+        OPC.prototype.transitPublicKey = THIS.options.publicKey;
+        OPC.prototype.transitGetTokenDataUrl = THIS.options.tokenDataUrl;
       }
 
       // MageStore OSC
       window.payment = window.payment || {};
-      window.payment.secureSubmitPublicKeyOSC = THIS.options.publicKey;
-      window.payment.secureSubmitGetTokenDataUrlOSC = THIS.options.tokenDataUrl;
+      window.payment.transitPublicKeyOSC = THIS.options.publicKey;
+      window.payment.transitGetTokenDataUrlOSC = THIS.options.tokenDataUrl;
 
       // IWD OPC
       if (typeof IWD !== 'undefined' && typeof IWD.OPC !== 'undefined') {
-        IWD.OPC.secureSubmitPublicKey = THIS.options.publicKey;
-        IWD.OPC.secureSubmitGetTokenDataUrl = THIS.options.tokenDataUrl;
+        IWD.OPC.transitPublicKey = THIS.options.publicKey;
+        IWD.OPC.transitGetTokenDataUrl = THIS.options.tokenDataUrl;
       }
 
       // Latest Version of IWD One page Checkout
@@ -55,16 +54,16 @@ if (!String.prototype.trim) {
         typeof OnePage !== 'undefined' &&
         typeof PaymentMethod !== 'undefined'
       ) {
-        PaymentMethod.prototype.secureSubmitPublicKey = THIS.options.publicKey;
-        PaymentMethod.prototype.secureSubmitGetTokenDataUrl =
+        PaymentMethod.prototype.transitPublicKey = THIS.options.publicKey;
+        PaymentMethod.prototype.transitGetTokenDataUrl =
           THIS.options.tokenDataUrl;
       }
 
       // AheadWorks OneStepCheckout
       if (typeof AWOnestepcheckoutForm !== 'undefined') {
-        AWOnestepcheckoutForm.prototype.secureSubmitPublicKey =
+        AWOnestepcheckoutForm.prototype.transitPublicKey =
           THIS.options.publicKey;
-        AWOnestepcheckoutForm.prototype.secureSubmitGetTokenDataUrl =
+        AWOnestepcheckoutForm.prototype.transitGetTokenDataUrl =
           THIS.options.tokenDataUrl;
       }
 
@@ -103,312 +102,259 @@ if (!String.prototype.trim) {
         );
       }
     },
-    observeGift: function() {
-      if (THIS.options.allowGift) {
-        Event.observe('apply-gift-card', 'click', function(event) {
-          $j.ajax({
-            url: THIS.options.giftBalanceUrl,
-            type: 'GET',
-            data:
-              'giftcard_number=' +
-              $j('#' + THIS.options.code + '_giftcard_number').val() +
-              '&giftcard_pin=' +
-              $j('#' + THIS.options.code + '_giftcard_pin').val(),
-            success: function(data) {
-              if (data.error) {
-                alert('Error adding gift card: ' + data.message);
-              } else {
-                //successful gift, show things
-                $j('#apply-gift-card').hide();
-                $j('#' + THIS.options.code + '_giftcard_number').hide();
-                $j('#' + THIS.options.code + '_giftcard_pin').hide();
-                $j('#gift-card-number-label').text(
-                  $j('#' + THIS.options.code + '_giftcard_number').val() +
-                    ' - $' +
-                    data.balance
-                );
-                $j('#gift-card-number-label').show();
-                $j('#remove-gift-card').show();
+    setupFields: function() {
+      GlobalPayments.configure({
+        publicApiKey: 'pkapi_cert_jKc1FtuyAydZhZfbB3',
+      });
 
-                if (!data.less_than_total) {
-                  // skip cc capture enable
-                  $$('#payment_form_hps_transit .new-card')[0].hide();
-                  $('hps_transit_gift_card').style.borderTopWidth = '0px';
-                  $(THIS.options.code + '_token').value = 'dummy';
-                  THIS.skipCreditCard = true;
-                  $(THIS.options.code + '_giftcard_skip_cc').value = 'true';
-                }
-              }
+      THIS.cardForm = GlobalPayments.ui.form({
+        fields: {
+          "card-number": {
+            target: THIS.options.iframeTargets.cardNumber,
+            placeholder: '•••• •••• •••• ••••',
+          },
+          "card-expiration": {
+            target: THIS.options.iframeTargets.cardExpiration,
+            placeholder: 'MM / YYYY',
+          },
+          "card-cvv": {
+            target: THIS.options.iframeTargets.cardCvv,
+            placeholder: 'CVV',
+          },
+        },
+        styles: {
+          '#secure-payment-field': {
+            height: '40px',
+            border: '1px solid silver',
+            'letter-spacing': '2.5px',
+            width: '97.5%',
+            'padding-left': '9px',
+          },
+          '#secure-payment-field:hover': {
+            border: '1px solid #3989e3',
+          },
+          '#secure-payment-field:focus': {
+            border: '1px solid #3989e3',
+            'box-shadow': 'none',
+            outline: 'none',
+          },
+          '#secure-payment-field[name="cardNumber"]': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-inputcard-blank@2x.png) no-repeat right',
+            'background-size': '50px 30px',
+          },
+          '#secure-payment-field[name="cardNumber"].valid.card-type-visa': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-visa@2x.png) no-repeat top right',
+            'background-size': '75px 84px',
+          },
+          '#secure-payment-field[name="cardNumber"].invalid.card-type-visa': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-visa@2x.png) no-repeat bottom right',
+            'background-size': '75px 84px',
+          },
+          '#secure-payment-field[name="cardNumber"].invalid.card-type-discover': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-discover@2x.png) no-repeat right',
+            'background-size': '70px 74px',
+            'background-position-y': '-35px',
+          },
+          '#secure-payment-field[name="cardNumber"].valid.card-type-discover': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-discover@2x.png) no-repeat right',
+            'background-size': '70px 74px',
+            'background-position-y': '2px',
+          },
+          '#secure-payment-field[name="cardNumber"].invalid.card-type-amex': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-input-amex@2x.png) no-repeat center right',
+            'background-size': '50px 55px',
+          },
+          '#secure-payment-field[name="cardNumber"].valid.card-type-amex': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-inputcard-amex@2x.png) no-repeat center right',
+            'background-size': '50px 55px',
+          },
+          '#secure-payment-field[name="cardNumber"].invalid.card-type-jcb': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-jcb@2x.png) no-repeat right',
+            'background-size': '75px 75px',
+            'background-position-y': '10px -35px',
+          },
+          '#secure-payment-field[name="cardNumber"].valid.card-type-jcb': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-jcb@2x.png) no-repeat right',
+            'background-size': '75px 76px',
+            'background-position-y': '10px 2px',
+          },
+          '#secure-payment-field[name="cardNumber"].invalid.card-type-mastercard': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-mastercard@2x.png) no-repeat bottom right',
+            'background-size': '71px',
+            'background-position-y': '-35px',
+          },
+          '#secure-payment-field[name="cardNumber"].valid.card-type-mastercard': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/ss-saved-mastercard@2x.png) no-repeat top right',
+            'background-size': '71px',
+            'background-position-y': '3px',
+          },
+          '#secure-payment-field.card-cvv': {
+            background:
+              'transparent url(' +
+              THIS.options.baseUrl.replace('/index.php', '') +
+              'skin/frontend/base/default/transit/images/cvv1.png) no-repeat right',
+            'background-size': '50px 30px',
+          },
+          '@media only screen and (max-width: 479px)': {
+            '#secure-payment-field': {
+              width: '95%',
             },
-          });
-        });
-        Event.observe('remove-gift-card', 'click', function(event) {
-          $j('#apply-gift-card').show();
-          $j('#' + THIS.options.code + '_giftcard_number').val('');
-          $j('#' + THIS.options.code + '_giftcard_number').show();
-          $j('#' + THIS.options.code + '_giftcard_pin').val('');
-          $j('#' + THIS.options.code + '_giftcard_pin').show();
-          $j('#gift-card-number-label').text('');
-          $j('#gift-card-number-label').hide();
-          $j('#remove-gift-card').hide();
+          },
+        }
+      })
 
-          // skip cc capture disable
-          $$('#payment_form_hps_transit .new-card')[0].show();
-          $('hps_transit_gift_card').style.borderTopWidth = '1px';
-          $(THIS.options.code + '_token').value = '';
-          THIS.skipCreditCard = false;
-          $(THIS.options.code + '_giftcard_skip_cc').value = 'false';
-        });
+      THIS.cardForm.on('token-success', function(resp) {
+        // BEGIN: AheadWorks OneStepCheckout fix
+        // This is required in order to work around a limitation with AW OSC and our
+        // iframes' `message` event handler. Because of how AW OSC refreshes the payment
+        // multiple times, mutiple event handlers for `message` are added, so the
+        // `onTokenSuccess` event that we receive is firing multiple times which also
+        // submits the form multiple times, attempting to create multiple orders.
+        if (
+          THIS.isOnePageCheckout() &&
+          typeof opcTokenSubmits[resp.paymentReference] !== 'undefined'
+        ) {
+          return;
+        }
+
+        opcTokenSubmits[resp.paymentReference] = true;
+        // END: AheadWorks OneStepCheckout fix
+
+        $(THIS.options.code + '_token').value = resp.paymentReference;
+
+        if (resp.details) {
+          $(
+            THIS.options.code + '_cc_last_four'
+          ).value = resp.details.cardLast4;
+          $(THIS.options.code + '_cc_type').value = resp.details.cardType;
+          $(
+            THIS.options.code + '_cc_exp_month'
+          ).value = resp.details.expiryMonth.trim();
+          $(
+            THIS.options.code + '_cc_exp_year'
+          ).value = resp.details.expiryYear.trim();
+        }
+
+        THIS.completeCheckout();
+      });
+
+      var onError = function(response) {
+        if (THIS.skipCreditCard) {
+          THIS.completeCheckout();
+          return;
+        }
+
+        if (response.error.message) {
+          alert(response.error.message);
+        } else {
+          alert('Unexpected error.');
+        }
+
+        if (typeof Payment !== 'undefined' && window.checkout) {
+          checkout.setLoadWaiting(false);
+        } else if (typeof OPC !== 'undefined' && window.checkout) {
+          checkout.setLoadWaiting(false);
+        } else if (
+          typeof iwdOpcConfig !== 'undefined' &&
+          typeof OnePage !== 'undefined' &&
+          typeof PaymentMethod !== 'undefined'
+        ) {
+          $ji('.iwd_opc_loader_wrapper.active').hide();
+        }
+
+        if (window.awOSCForm) {
+          form.enablePlaceOrderButton();
+          form.hidePleaseWaitNotice();
+          form.hideOverlay();
+        }
+      };
+
+      THIS.cardForm.on('token-error', onError);
+      GlobalPayments.on('error', onError);
+
+      if (document.getElementById('amscheckout-onepage')) {
+        var ssbanner = document.getElementById('ss-banner');
+        var ccnumber = document.getElementById('cc-number');
+        var expirationdate = document.getElementById('expiration-dat');
+        var ccv = document.getElementById('payment-buttons-container');
+
+        if (ssbanner) {
+          ssbanner.style.backgroundSize = '325px 40px';
+        }
+        if (ccnumber) {
+          ccnumber.className = 'transit_amasty_one_page_checkout';
+        }
+        if (expirationdate) {
+          expirationdate.className = 'transit_amasty_one_page_checkout';
+        }
+        if (ccv) {
+          ccv.className = 'transit_amasty_one_page_checkout';
+        }
       }
     },
-    setupFields: function() {
-      if (THIS.options.useIframes) {
-        var options = {
-          publicKey: THIS.options.publicKey,
-          type: 'iframe',
-          fields: {
-            cardNumber: {
-              target: THIS.options.iframeTargets.cardNumber,
-              placeholder: '•••• •••• •••• ••••',
-            },
-            cardExpiration: {
-              target: THIS.options.iframeTargets.cardExpiration,
-              placeholder: 'MM / YYYY',
-            },
-            cardCvv: {
-              target: THIS.options.iframeTargets.cardCvv,
-              placeholder: 'CVV',
-            },
-          },
-          style: {
-            '#heartland-field': {
-              height: '40px',
-              border: '1px solid silver',
-              'letter-spacing': '2.5px',
-              width: '97.5%',
-              'padding-left': '9px',
-            },
-            '.iwd-opc-index-index #heartland-field': {
-              'max-width': '365px',
-            },
-            '#heartland-field:hover': {
-              border: '1px solid #3989e3',
-            },
-            '#heartland-field:focus': {
-              border: '1px solid #3989e3',
-              'box-shadow': 'none',
-              outline: 'none',
-            },
-            '#heartland-field[name="cardNumber"]': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-inputcard-blank@2x.png) no-repeat right',
-              'background-size': '50px 30px',
-            },
-            '#heartland-field.valid.card-type-visa': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-visa@2x.png) no-repeat top right',
-              'background-size': '75px 84px',
-            },
-            '#heartland-field.invalid.card-type-visa': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-visa@2x.png) no-repeat bottom right',
-              'background-size': '75px 84px',
-            },
-            '#heartland-field[name="cardNumber"].invalid.card-type-discover': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-discover@2x.png) no-repeat right',
-              'background-size': '70px 74px',
-              'background-position-y': '-35px',
-            },
-            '#heartland-field[name="cardNumber"].valid.card-type-discover': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-discover@2x.png) no-repeat right',
-              'background-size': '70px 74px',
-              'background-position-y': '2px',
-            },
-            '#heartland-field[name="cardNumber"].invalid.card-type-amex': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-input-amex@2x.png) no-repeat center right',
-              'background-size': '50px 55px',
-            },
-            '#heartland-field[name="cardNumber"].valid.card-type-amex': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-inputcard-amex@2x.png) no-repeat center right',
-              'background-size': '50px 55px',
-            },
-            '#heartland-field[name="cardNumber"].invalid.card-type-jcb': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-jcb@2x.png) no-repeat right',
-              'background-size': '75px 75px',
-              'background-position-y': '10px -35px',
-            },
-            '#heartland-field[name="cardNumber"].valid.card-type-jcb': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-jcb@2x.png) no-repeat right',
-              'background-size': '75px 76px',
-              'background-position-y': '10px 2px',
-            },
-            '#heartland-field[name="cardNumber"].invalid.card-type-mastercard': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-mastercard@2x.png) no-repeat bottom right',
-              'background-size': '71px',
-              'background-position-y': '-35px',
-            },
-            '#heartland-field[name="cardNumber"].valid.card-type-mastercard': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/ss-saved-mastercard@2x.png) no-repeat top right',
-              'background-size': '71px',
-              'background-position-y': '3px',
-            },
-            '#heartland-field[name="cardCvv"]': {
-              background:
-                'transparent url(' +
-                THIS.options.baseUrl.replace('/index.php', '') +
-                'skin/frontend/base/default/transit/images/cvv1.png) no-repeat right',
-              'background-size': '50px 30px',
-            },
-            '@media only screen and (max-width: 479px)': {
-              '#heartland-field': {
-                width: '95%',
-              },
-            },
-          },
-          onTokenSuccess: function(resp) {
-            var heartland = resp.heartland || resp;
+    triggerSubmit: function () {
+      // manually include submit button
+      const fields = ['submit'];
+      const target = THIS.cardForm.frames['card-number'];
 
-            // TODO: Need to investigate why this is necessary
-            if (heartland.error) {
-              options.onTokenError(heartland);
-              return;
-            }
+      for (const type in THIS.cardForm.frames) {
+        if (THIS.cardForm.frames.hasOwnProperty(type)) {
+          fields.push(type);
+        }
+      }
 
-            // BEGIN: AheadWorks OneStepCheckout fix
-            // This is required in order to work around a limitation with AW OSC and our
-            // iframes' `message` event handler. Because of how AW OSC refreshes the payment
-            // multiple times, mutiple event handlers for `message` are added, so the
-            // `onTokenSuccess` event that we receive is firing multiple times which also
-            // submits the form multiple times, attempting to create multiple orders.
-            if (
-              THIS.isOnePageCheckout() &&
-              typeof opcTokenSubmits[heartland.token_value] !== 'undefined'
-            ) {
-              return;
-            }
-
-            opcTokenSubmits[heartland.token_value] = true;
-            // END: AheadWorks OneStepCheckout fix
-
-            $(THIS.options.code + '_token').value = heartland.token_value;
-            $(
-              THIS.options.code + '_cc_last_four'
-            ).value = heartland.card.number.substr(-4);
-            $(THIS.options.code + '_cc_type').value = heartland.card_type;
-            $(
-              THIS.options.code + '_cc_exp_month'
-            ).value = heartland.exp_month.trim();
-            $(
-              THIS.options.code + '_cc_exp_year'
-            ).value = heartland.exp_year.trim();
-
-            if (resp.cardinal) {
-              var el = document.createElement('input');
-              el.value = resp.cardinal.token_value;
-              el.type = 'hidden';
-              el.name = 'payment[cardinal_token]';
-              el.id = THIS.options.code + '_cardinal_token';
-              $('payment_form_' + THIS.options.code).appendChild(el);
-            }
-
-            THIS.initializeCCA(THIS.completeCheckout);
-          },
-          onTokenError: function(response) {
-            if (THIS.skipCreditCard) {
-              THIS.completeCheckout();
-              return;
-            }
-
-            if (response.error.message) {
-              alert(response.error.message);
-            } else {
-              alert('Unexpected error.');
-            }
-
-            if (typeof Payment !== 'undefined' && window.checkout) {
-              checkout.setLoadWaiting(false);
-            } else if (typeof OPC !== 'undefined' && window.checkout) {
-              checkout.setLoadWaiting(false);
-            } else if (
-              typeof iwdOpcConfig !== 'undefined' &&
-              typeof OnePage !== 'undefined' &&
-              typeof PaymentMethod !== 'undefined'
-            ) {
-              $ji('.iwd_opc_loader_wrapper.active').hide();
-            }
-
-            if (window.awOSCForm) {
-              form.enablePlaceOrderButton();
-              form.hidePleaseWaitNotice();
-              form.hideOverlay();
-            }
-          },
-        };
-
-        if (THIS.options.cca) {
-          options.cca = THIS.options.cca;
+      for (const type in THIS.cardForm.frames) {
+        if (!THIS.cardForm.frames.hasOwnProperty(type)) {
+          continue;
         }
 
-        THIS.tokenizeOptions = options;
-        THIS.hps = new Heartland.HPS(options);
+        const frame = THIS.cardForm.frames[type];
 
-        if (document.getElementById('amscheckout-onepage')) {
-          var ssbanner = document.getElementById('ss-banner');
-          var ccnumber = document.getElementById('cc-number');
-          var expirationdate = document.getElementById('expiration-dat');
-          var ccv = document.getElementById('payment-buttons-container');
-
-          if (ssbanner) {
-            ssbanner.style.backgroundSize = '325px 40px';
-          }
-          if (ccnumber) {
-            ccnumber.className = 'transit_amasty_one_page_checkout';
-          }
-          if (expirationdate) {
-            expirationdate.className = 'transit_amasty_one_page_checkout';
-          }
-          if (ccv) {
-            ccv.className = 'transit_amasty_one_page_checkout';
-          }
+        if (!frame) {
+          continue;
         }
-      } else {
-        Heartland.Card.attachNumberEvents(
-          '#' + THIS.options.code + '_cc_number'
-        );
-        Heartland.Card.attachExpirationEvents(
-          '#' + THIS.options.code + '_exp_date'
-        );
-        Heartland.Card.attachCvvEvents('#' + THIS.options.code + '_cvv_number');
+
+        GlobalPayments.internal.postMessage.post({
+          data: {
+            fields: fields,
+            target: target.id
+          },
+          id: frame.id,
+          type: 'ui:iframe-field:request-data'
+        }, frame.id);
       }
     },
     isOnePageCheckout: function() {
@@ -418,7 +364,7 @@ if (!String.prototype.trim) {
         (typeof iwdOpcConfig !== 'undefined' &&
           typeof OnePage !== 'undefined' &&
           typeof PaymentMethod !== 'undefined') ||
-        window.secureSubmitAmastyCompleteCheckoutOriginal ||
+        window.transitAmastyCompleteCheckoutOriginal ||
         window.oscPlaceOrderOriginal ||
         window.awOSCForm
       );
@@ -446,8 +392,8 @@ if (!String.prototype.trim) {
       ) {
         $ji('.iwd_opc_loader_wrapper.active').show();
         Singleton.get(OnePage).saveOrder();
-      } else if (window.secureSubmitAmastyCompleteCheckoutOriginal) {
-        secureSubmitAmastyCompleteCheckoutOriginal();
+      } else if (window.transitAmastyCompleteCheckoutOriginal) {
+        transitAmastyCompleteCheckoutOriginal();
       } else if (window.oscPlaceOrderOriginal) {
         $('onestepcheckout-place-order-loading').show();
         $('onestepcheckout-button-place-order').removeClassName(
@@ -469,106 +415,8 @@ if (!String.prototype.trim) {
         document.getElementById('payment-continue').enable();
         document.getElementById('multishipping-billing-form').submit();
       } else if (window.awOSCForm) {
-        awOSCForm._secureSubmitOldPlaceOrder();
+        awOSCForm._transitOldPlaceOrder();
       }
-    },
-    initializeCCA: function(callback) {
-      if (!THIS.options.cca) {
-        callback();
-        return;
-      }
-
-      Cardinal.__secureSubmitInitFrame =
-        Cardinal.__secureSubmitInitFrame || false;
-      if (!Cardinal.__secureSubmitInitFrame) {
-        Cardinal.setup('init', {
-          jwt: THIS.options.cca.jwt,
-        });
-        Cardinal.on('payments.validated', function(data, jwt) {
-          var makeField = function(name, value) {
-            var el = document.createElement('input');
-            el.value = value;
-            el.type = 'hidden';
-            el.name = 'payment[cca_data_' + name + ']';
-            $('payment_form_' + THIS.options.code).appendChild(el);
-          };
-          makeField('action_code', data.ActionCode);
-          makeField(
-            'cavv',
-            data.Payment &&
-            data.Payment.ExtendedData &&
-            data.Payment.ExtendedData.CAVV
-              ? data.Payment.ExtendedData.CAVV
-              : ''
-          );
-          makeField(
-            'eci',
-            data.Payment &&
-            data.Payment.ExtendedData &&
-            data.Payment.ExtendedData.ECIFlag
-              ? data.Payment.ExtendedData.ECIFlag
-              : ''
-          );
-          makeField(
-            'xid',
-            data.Payment &&
-            data.Payment.ExtendedData &&
-            data.Payment.ExtendedData.XID
-              ? data.Payment.ExtendedData.XID
-              : ''
-          );
-          makeField(
-            'token',
-            data.Token && data.Token.Token ? data.Token.Token : ''
-          );
-          if (callback) {
-            callback();
-          }
-        });
-        Cardinal.__secureSubmitInitFrame = true;
-      }
-
-      Cardinal.trigger('jwt.update', THIS.options.cca.jwt);
-
-      var payload = {
-        OrderDetails: {
-          OrderNumber: THIS.options.cca.orderNumber + 'cca',
-        },
-      };
-
-      if (THIS.options.useIframes) {
-        payload.Token = {
-          Token: $(THIS.options.code + '_cardinal_token').value,
-          ExpirationMonth: $('hps_transit_cc_exp_month').value.replace(
-            /\D/g,
-            ''
-          ),
-          ExpirationYear: $('hps_transit_cc_exp_year').value.replace(
-            /\D/g,
-            ''
-          ),
-        };
-      } else {
-        payload.Consumer = {
-          Account: {
-            AccountNumber: $('hps_transit_cc_number').value.replace(
-              /\D/g,
-              ''
-            ),
-            CardCode: $('hps_transit_cvv_number').value.replace(/\D/g, ''),
-            ExpirationMonth: $('hps_transit_cc_exp_month').value.replace(
-              /\D/g,
-              ''
-            ),
-            ExpirationYear: $('hps_transit_cc_exp_year').value.replace(
-              /\D/g,
-              ''
-            ),
-          },
-        };
-      }
-
-      Cardinal.start('cca', payload);
     },
     useStoredCard: function() {
       var newRadio = $('hps_transit_stored_card_select_new');
@@ -611,7 +459,7 @@ if (!String.prototype.trim) {
 })(window, window.document);
 
 function transitMultishipping(multiForm) {
-  var secureSubmit = {
+  var transit = {
     save: function() {
       if (payment && payment.currentMethod != 'hps_transit') {
         multiForm.submit();
@@ -621,14 +469,14 @@ function transitMultishipping(multiForm) {
       document.getElementById('payment-continue').disable();
 
       // Use stored card checked, get existing token data
-      if (this.secureSubmitUseStoredCard()) {
+      if (this.transitUseStoredCard()) {
         var radio = $$(
           '[name="hps_transit_stored_card_select"]:checked'
         )[0];
         var storedcardId = radio.value;
         var storedcardType = $(radio.id + '_card_type').value;
 
-        new Ajax.Request(this.secureSubmitGetTokenDataUrl, {
+        new Ajax.Request(this.transitGetTokenDataUrl, {
           method: 'post',
           parameters: {storedcard_id: storedcardId},
           onSuccess: function(response) {
@@ -639,7 +487,7 @@ function transitMultishipping(multiForm) {
               );
               $('hps_transit_cc_exp_year').value = data.token.cc_exp_year;
             }
-            this.secureSubmitResponseHandler.call(this, {
+            this.transitResponseHandler.call(this, {
               card_type: storedcardType,
               token_value: data.token.token_value,
               token_type: null, // 'supt'?
@@ -655,42 +503,14 @@ function transitMultishipping(multiForm) {
         });
       } else {
         // Use stored card not checked, get new token
-        if (TransITMagento.options.useIframes) {
-          TransITMagento.hps.Messages.post(
-            {
-              accumulateData: true,
-              action: 'tokenize',
-              data: TransITMagento.tokenizeOptions,
-            },
-            'cardNumber'
-          );
-        } else {
-          var validator = new Validation(multiForm);
-          if (validator.validate()) {
-            if ($('hps_transit_exp_date').value) {
-              var date = $('hps_transit_exp_date').value.split('/');
-              $('hps_transit_cc_exp_month').value = date[0].trim();
-              $('hps_transit_cc_exp_year').value = date[1].trim();
-            }
-
-            new Heartland.HPS({
-              publicKey: this.secureSubmitPublicKey,
-              cardNumber: $('hps_transit_cc_number').value,
-              cardCvv: $('hps_transit_cvv_number').value,
-              cardExpMonth: $('hps_transit_cc_exp_month').value,
-              cardExpYear: $('hps_transit_cc_exp_year').value,
-              success: this.secureSubmitResponseHandler.bind(this),
-              error: this.secureSubmitResponseHandler.bind(this),
-            }).tokenize();
-          }
-        }
+        TransITMagento.triggerSubmit();
       }
     },
-    secureSubmitUseStoredCard: function() {
+    transitUseStoredCard: function() {
       var newRadio = $('hps_transit_stored_card_select_new');
       return !newRadio.checked;
     },
-    secureSubmitResponseHandler: function(response) {
+    transitResponseHandler: function(response) {
       var tokenField = $('hps_transit_token'),
         typeField = $('hps_transit_cc_type'),
         lastFourField = $('hps_transit_cc_last_four');
@@ -727,15 +547,15 @@ function transitMultishipping(multiForm) {
       }
     },
   };
-  return secureSubmit;
+  return transit;
 }
-var secureSubmitAmastyCompleteCheckoutOriginal;
+var transitAmastyCompleteCheckoutOriginal;
 
 // AheadWorks OneStepCheckout
 Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
   var form = e.memo.form;
   var oldAwOsc = Object.clone(form);
-  form._secureSubmitOldPlaceOrder = oldAwOsc.placeOrder;
+  form._transitOldPlaceOrder = oldAwOsc.placeOrder;
 
   form.placeOrder = function() {
     var checkedPaymentMethod = $$(
@@ -745,7 +565,7 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
       checkedPaymentMethod.length !== 1 ||
       checkedPaymentMethod[0].value !== 'hps_transit'
     ) {
-      this._secureSubmitOldPlaceOrder();
+      this._transitOldPlaceOrder();
       return;
     }
 
@@ -754,7 +574,7 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
       var radio = $$('[name="hps_transit_stored_card_select"]:checked')[0];
       var storedcardId = radio.value;
       var storedcardType = $(radio.id + '_card_type').value;
-      new Ajax.Request(form.secureSubmitGetTokenDataUrl, {
+      new Ajax.Request(form.transitGetTokenDataUrl, {
         method: 'post',
         parameters: {storedcard_id: storedcardId},
         onSuccess: function(response) {
@@ -765,7 +585,7 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
             );
             $('hps_transit_cc_exp_year').value = data.token.cc_exp_year;
           }
-          this.secureSubmitResponseHandler.call(this, {
+          this.transitResponseHandler.call(this, {
             card_type: storedcardType,
             token_value: data.token.token_value,
             token_type: null, // 'supt'?
@@ -785,14 +605,7 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
     } else {
       // Use stored card not checked, get new token
       if (window.TransITMagento.options.useIframes) {
-        window.TransITMagento.hps.Messages.post(
-          {
-            accumulateData: true,
-            action: 'tokenize',
-            data: window.TransITMagento.tokenizeOptions,
-          },
-          'cardNumber'
-        );
+        window.TransITMagento.triggerSubmit();
       } else {
         if (
           $('hps_transit_exp_date') &&
@@ -804,19 +617,19 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
         }
 
         new Heartland.HPS({
-          publicKey: form.secureSubmitPublicKey,
+          publicKey: form.transitPublicKey,
           cardNumber: $('hps_transit_cc_number').value,
           cardCvv: $('hps_transit_cvv_number').value,
           cardExpMonth: $('hps_transit_cc_exp_month').value,
           cardExpYear: $('hps_transit_cc_exp_year').value,
-          success: form.secureSubmitResponseHandler.bind(form),
-          error: form.secureSubmitResponseHandler.bind(form),
+          success: form.transitResponseHandler.bind(form),
+          error: form.transitResponseHandler.bind(form),
         }).tokenize();
       }
     }
   };
 
-  form.secureSubmitResponseHandler = function(response) {
+  form.transitResponseHandler = function(response) {
     var tokenField = $('hps_transit_token'),
       typeField = $('hps_transit_cc_type'),
       lastFourField = $('hps_transit_cc_last_four');
@@ -848,12 +661,8 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
       lastFourField.value = response.card.number.substr(-4);
       typeField.value = response.card_type;
 
-      window.TransITMagento.initializeCCA(
-        function() {
-          // Continue Magento checkout steps
-          form._secureSubmitOldPlaceOrder();
-        }.bind(this)
-      );
+      // Continue Magento checkout steps
+      form._transitOldPlaceOrder();
     } else {
       alert('Unexpected error.');
     }
@@ -863,28 +672,28 @@ Event.observe(document, 'aw_osc:onestepcheckout_form_init_before', function(e) {
 document.observe('dom:loaded', function() {
   // Override default Payment save handler
   if (typeof Payment !== 'undefined') {
-    if (typeof Payment.prototype._secureSubmitOldSave === 'undefined') {
+    if (typeof Payment.prototype._transitOldSave === 'undefined') {
       var oldPayment = Object.clone(Payment.prototype);
-      Payment.prototype._secureSubmitOldSave = oldPayment.save;
+      Payment.prototype._transitOldSave = oldPayment.save;
     }
     Object.extend(Payment.prototype, {
       save: function() {
         if (this.currentMethod != 'hps_transit') {
-          this._secureSubmitOldSave();
+          this._transitOldSave();
           return;
         }
 
         if (checkout.loadWaiting !== false) return;
 
         // Use stored card checked, get existing token data
-        if (this.secureSubmitUseStoredCard()) {
+        if (this.transitUseStoredCard()) {
           var radio = $$(
             '[name="hps_transit_stored_card_select"]:checked'
           )[0];
           var storedcardId = radio.value;
           var storedcardType = $(radio.id + '_card_type').value;
           checkout.setLoadWaiting('payment');
-          new Ajax.Request(this.secureSubmitGetTokenDataUrl, {
+          new Ajax.Request(this.transitGetTokenDataUrl, {
             method: 'post',
             parameters: {storedcard_id: storedcardId},
             onSuccess: function(response) {
@@ -896,7 +705,7 @@ document.observe('dom:loaded', function() {
                 $('hps_transit_cc_exp_year').value =
                   data.token.cc_exp_year;
               }
-              this.secureSubmitResponseHandler.call(this, {
+              this.transitResponseHandler.call(this, {
                 card_type: storedcardType,
                 token_value: data.token.token_value,
                 token_type: null, // 'supt'?
@@ -915,14 +724,7 @@ document.observe('dom:loaded', function() {
           // Use stored card not checked, get new token
           if (TransITMagento.options.useIframes) {
             checkout.setLoadWaiting('payment');
-            TransITMagento.hps.Messages.post(
-              {
-                accumulateData: true,
-                action: 'tokenize',
-                data: TransITMagento.tokenizeOptions,
-              },
-              'cardNumber'
-            );
+            TransITMagento.triggerSubmit();
           } else {
             var validator = new Validation(this.form);
             if (this.validate() && validator.validate()) {
@@ -938,23 +740,23 @@ document.observe('dom:loaded', function() {
               }
 
               new Heartland.HPS({
-                publicKey: this.secureSubmitPublicKey,
+                publicKey: this.transitPublicKey,
                 cardNumber: $('hps_transit_cc_number').value,
                 cardCvv: $('hps_transit_cvv_number').value,
                 cardExpMonth: $('hps_transit_cc_exp_month').value,
                 cardExpYear: $('hps_transit_cc_exp_year').value,
-                success: this.secureSubmitResponseHandler.bind(this),
-                error: this.secureSubmitResponseHandler.bind(this),
+                success: this.transitResponseHandler.bind(this),
+                error: this.transitResponseHandler.bind(this),
               }).tokenize();
             }
           }
         }
       },
-      secureSubmitUseStoredCard: function() {
+      transitUseStoredCard: function() {
         var newRadio = $('hps_transit_stored_card_select_new');
         return !newRadio.checked;
       },
-      secureSubmitResponseHandler: function(response) {
+      transitResponseHandler: function(response) {
         var tokenField = $('hps_transit_token'),
           typeField = $('hps_transit_cc_type'),
           lastFourField = $('hps_transit_cc_last_four');
@@ -984,18 +786,14 @@ document.observe('dom:loaded', function() {
           lastFourField.value = response.card.number.substr(-4);
           typeField.value = response.card_type;
 
-          TransITMagento.initializeCCA(
-            function() {
-              // Continue Magento checkout steps
-              new Ajax.Request(this.saveUrl, {
-                method: 'post',
-                onComplete: this.onComplete,
-                onSuccess: this.onSave,
-                onFailure: checkout.ajaxFailure.bind(checkout),
-                parameters: Form.serialize(this.form),
-              });
-            }.bind(this)
-          );
+          // Continue Magento checkout steps
+          new Ajax.Request(this.saveUrl, {
+            method: 'post',
+            onComplete: this.onComplete,
+            onSuccess: this.onSave,
+            onFailure: checkout.ajaxFailure.bind(checkout),
+            parameters: Form.serialize(this.form),
+          });
         } else {
           alert('Unexpected error.');
         }
@@ -1004,47 +802,20 @@ document.observe('dom:loaded', function() {
   }
 
   if (typeof OPC !== 'undefined') {
-    if (typeof OPC.prototype._secureSubmitOldSubmit === 'undefined') {
+    if (typeof OPC.prototype._transitOldSubmit === 'undefined') {
       var oldOPC = Object.clone(OPC.prototype);
-      OPC.prototype._secureSubmitOldSubmit = oldOPC.submit;
+      OPC.prototype._transitOldSubmit = oldOPC.submit;
     }
     Object.extend(OPC.prototype, {
       save: function() {
         if (this.sectionsToValidate[0].currentMethod != 'hps_transit') {
-          this._secureSubmitOldSubmit();
+          this._transitOldSubmit();
           return;
         }
-        if (TransITMagento.options.useIframes) {
-          TransITMagento.hps.Messages.post(
-            {
-              accumulateData: true,
-              action: 'tokenize',
-              data: TransITMagento.tokenizeOptions,
-            },
-            'cardNumber'
-          );
-        } else {
-          if (
-            $('hps_transit_exp_date') &&
-            $('hps_transit_exp_date').value
-          ) {
-            var date = $('hps_transit_exp_date').value.split('/');
-            $('hps_transit_cc_exp_month').value = date[0].trim();
-            $('hps_transit_cc_exp_year').value = date[1].trim();
-          }
 
-          new Heartland.HPS({
-            publicKey: this.secureSubmitPublicKey,
-            cardNumber: $('hps_transit_cc_number').value,
-            cardCvv: $('hps_transit_cvv_number').value,
-            cardExpMonth: $('hps_transit_cc_exp_month').value,
-            cardExpYear: $('hps_transit_cc_exp_year').value,
-            success: this.secureSubmitResponseHandler.bind(this),
-            error: this.secureSubmitResponseHandler.bind(this),
-          }).tokenize();
-        }
+        TransITMagento.triggerSubmit();
       },
-      secureSubmitResponseHandler: function(response) {
+      transitResponseHandler: function(response) {
         var tokenField = $('hps_transit_token'),
           typeField = $('hps_transit_cc_type'),
           lastFourField = $('hps_transit_cc_last_four');
@@ -1077,7 +848,7 @@ document.observe('dom:loaded', function() {
 
           this.setLoadWaiting(true);
           var params = Form.serialize(this.form);
-          var request = new Ajax.Request(this.saveUrl, {
+          new Ajax.Request(this.saveUrl, {
             method: 'post',
             parameters: params,
             onSuccess: this.setResponse.bind(this),
@@ -1104,10 +875,10 @@ document.observe('dom:loaded', function() {
   // Amasty completeCheckout();
 
   if (
-    typeof completeCheckout === 'function' &&
+    typeof window.completeCheckout === 'function' &&
     document.getElementById('amscheckout-onepage')
   ) {
-    secureSubmitAmastyCompleteCheckoutOriginal = cloneFunction(
+    transitAmastyCompleteCheckoutOriginal = cloneFunction(
       completeCheckout
     );
 
@@ -1126,14 +897,13 @@ document.observe('dom:loaded', function() {
       container.parentNode.removeChild(container);
     }
 
-    completeCheckout = function(btn) {
+    window.completeCheckout = function(btn) {
       var validator = new Validation('amscheckout-onepage');
-      var form = $('amscheckout-onepage');
 
       if (validator.validate()) {
         var currentPayment = payment.currentMethod;
         if (currentPayment != 'hps_transit') {
-          secureSubmitAmastyCompleteCheckoutOriginal(btn);
+          transitAmastyCompleteCheckoutOriginal(btn);
           return;
         }
 
@@ -1146,18 +916,18 @@ document.observe('dom:loaded', function() {
           $('hps_transit_cc_exp_year').value = date[1].trim();
         }
 
-        if (secureSubmitUseStoredCardAOSC()) {
+        if (transitUseStoredCardAOSC()) {
           var radio = $$(
             '[name="hps_transit_stored_card_select"]:checked'
           )[0];
           var storedcardId = radio.value;
           var storedcardType = $(radio.id + '_card_type').value;
-          new Ajax.Request(window.payment.secureSubmitGetTokenDataUrlOSC, {
+          new Ajax.Request(window.payment.transitGetTokenDataUrlOSC, {
             method: 'post',
             parameters: {storedcard_id: storedcardId},
             onSuccess: function(response) {
               var data = response.responseJSON;
-              secureSubmitResponseHandlerAOSC(
+              transitResponseHandlerAOSC(
                 {
                   card_type: storedcardType,
                   token_value: data.token.token_value,
@@ -1175,40 +945,17 @@ document.observe('dom:loaded', function() {
             },
           });
         } else {
-          if (TransITMagento.options.useIframes) {
-            TransITMagento.hps.Messages.post(
-              {
-                accumulateData: true,
-                action: 'tokenize',
-                data: TransITMagento.tokenizeOptions,
-              },
-              'cardNumber'
-            );
-          } else {
-            new Heartland.HPS({
-              publicKey: window.payment.secureSubmitPublicKeyOSC,
-              cardNumber: $('hps_transit_cc_number').value,
-              cardCvv: $('hps_transit_cvv_number').value,
-              cardExpMonth: $('hps_transit_cc_exp_month').value,
-              cardExpYear: $('hps_transit_cc_exp_year').value,
-              success: function(response) {
-                secureSubmitResponseHandlerAOSC(response, btn);
-              },
-              error: function(response) {
-                secureSubmitResponseHandlerAOSC(response, btn);
-              },
-            }).tokenize();
-          }
+          TransITMagento.triggerSubmit();
         }
       }
     };
 
-    secureSubmitUseStoredCardAOSC = function() {
+    window.transitUseStoredCardAOSC = function() {
       var newRadio = $('hps_transit_stored_card_select_new');
       return !newRadio.checked;
     };
 
-    secureSubmitResponseHandlerAOSC = function(response, btn) {
+    window.transitResponseHandlerAOSC = function(response, btn) {
       var tokenField = $('hps_transit_token'),
         typeField = $('hps_transit_cc_type'),
         lastFourField = $('hps_transit_cc_last_four');
@@ -1237,7 +984,7 @@ document.observe('dom:loaded', function() {
         lastFourField.value = response.card.number.substr(-4);
         typeField.value = response.card_type;
 
-        secureSubmitAmastyCompleteCheckoutOriginal(btn);
+        transitAmastyCompleteCheckoutOriginal(btn);
       } else {
         alert('Unexpected error.');
       }
@@ -1245,9 +992,9 @@ document.observe('dom:loaded', function() {
   }
 
   // MageStore One Step Checkout
-  if (typeof oscPlaceOrder === 'function') {
+  if (typeof window.oscPlaceOrder === 'function') {
     window.oscPlaceOrderOriginal = cloneFunction(oscPlaceOrder);
-    oscPlaceOrder = function(btn) {
+    window.oscPlaceOrder = function(btn) {
       var validator = new Validation('one-step-checkout-form');
       var form = $('one-step-checkout-form');
       TransITMagento.__data.btn = btn;
@@ -1264,13 +1011,13 @@ document.observe('dom:loaded', function() {
         $('onestepcheckout-button-place-order').addClassName(
           'onestepcheckout-btn-checkout'
         );
-        if (secureSubmitUseStoredCardOSC()) {
+        if (transitUseStoredCardOSC()) {
           var radio = $$(
             '[name="hps_transit_stored_card_select"]:checked'
           )[0];
           var storedcardId = radio.value;
           var storedcardType = $(radio.id + '_card_type').value;
-          new Ajax.Request(window.payment.secureSubmitGetTokenDataUrlOSC, {
+          new Ajax.Request(window.payment.transitGetTokenDataUrlOSC, {
             method: 'post',
             parameters: {storedcard_id: storedcardId},
             onSuccess: function(response) {
@@ -1282,7 +1029,7 @@ document.observe('dom:loaded', function() {
                 $('hps_transit_cc_exp_year').value =
                   data.token.cc_exp_year;
               }
-              secureSubmitResponseHandlerOSC(
+              transitResponseHandlerOSC(
                 {
                   card_type: storedcardType,
                   token_value: data.token.token_value,
@@ -1307,49 +1054,17 @@ document.observe('dom:loaded', function() {
             },
           });
         } else {
-          if (TransITMagento.options.useIframes) {
-            TransITMagento.hps.Messages.post(
-              {
-                accumulateData: true,
-                action: 'tokenize',
-                data: TransITMagento.tokenizeOptions,
-              },
-              'cardNumber'
-            );
-          } else {
-            if (
-              $('hps_transit_exp_date') &&
-              $('hps_transit_exp_date').value
-            ) {
-              var date = $('hps_transit_exp_date').value.split('/');
-              $('hps_transit_cc_exp_month').value = date[0].trim();
-              $('hps_transit_cc_exp_year').value = date[1].trim();
-            }
-
-            new Heartland.HPS({
-              publicKey: window.payment.secureSubmitPublicKeyOSC,
-              cardNumber: $('hps_transit_cc_number').value,
-              cardCvv: $('hps_transit_cvv_number').value,
-              cardExpMonth: $('hps_transit_cc_exp_month').value,
-              cardExpYear: $('hps_transit_cc_exp_year').value,
-              success: function(response) {
-                secureSubmitResponseHandlerOSC(response, btn);
-              },
-              error: function(response) {
-                secureSubmitResponseHandlerOSC(response, btn);
-              },
-            }).tokenize();
-          }
+          TransITMagento.triggerSubmit();
         }
       }
     };
 
-    secureSubmitUseStoredCardOSC = function() {
+    window.transitUseStoredCardOSC = function() {
       var newRadio = $('hps_transit_stored_card_select_new');
       return !newRadio.checked;
     };
 
-    secureSubmitResponseHandlerOSC = function(response, btn) {
+    window.transitResponseHandlerOSC = function(response, btn) {
       var tokenField = $('hps_transit_token'),
         typeField = $('hps_transit_cc_type'),
         lastFourField = $('hps_transit_cc_last_four');
@@ -1393,12 +1108,9 @@ document.observe('dom:loaded', function() {
         $('onestepcheckout-button-place-order').addClassName(
           'place-order-loader'
         );
-        window.TransITMagento.initializeCCA(
-          function() {
-            // Continue Magento checkout steps
-            oscPlaceOrderOriginal(btn);
-          }.bind(this)
-        );
+
+        // Continue Magento checkout steps
+        oscPlaceOrderOriginal(btn);
       } else {
         alert('Unexpected error.');
         $('onestepcheckout-place-order-loading').show();
@@ -1414,14 +1126,14 @@ document.observe('dom:loaded', function() {
 
   // IWD OPC
   if (typeof IWD !== 'undefined' && typeof IWD.OPC !== 'undefined') {
-    if (typeof IWD.OPC._secureSubmitOldSavePayment === 'undefined') {
+    if (typeof IWD.OPC._transitOldSavePayment === 'undefined') {
       var oldIWDOPC = Object.clone(IWD.OPC);
-      IWD.OPC._secureSubmitOldSavePayment = oldIWDOPC.savePayment;
+      IWD.OPC._transitOldSavePayment = oldIWDOPC.savePayment;
     }
     Object.extend(IWD.OPC, {
       savePayment: function() {
         if (payment.currentMethod != 'hps_transit') {
-          this._secureSubmitOldSavePayment();
+          this._transitOldSavePayment();
           return;
         }
 
@@ -1429,37 +1141,9 @@ document.observe('dom:loaded', function() {
           return;
         }
 
-        if (TransITMagento.options.useIframes) {
-          TransITMagento.hps.Messages.post(
-            {
-              accumulateData: true,
-              action: 'tokenize',
-              data: TransITMagento.tokenizeOptions,
-            },
-            'cardNumber'
-          );
-        } else {
-          if (
-            $('hps_transit_exp_date') &&
-            $('hps_transit_exp_date').value
-          ) {
-            var date = $('hps_transit_exp_date').value.split('/');
-            $('hps_transit_cc_exp_month').value = date[0].trim();
-            $('hps_transit_cc_exp_year').value = date[1].trim();
-          }
-
-          new Heartland.HPS({
-            publicKey: this.secureSubmitPublicKey,
-            cardNumber: $('hps_transit_cc_number').value,
-            cardCvv: $('hps_transit_cvv_number').value,
-            cardExpMonth: $('hps_transit_cc_exp_month').value,
-            cardExpYear: $('hps_transit_cc_exp_year').value,
-            success: this.secureSubmitResponseHandler.bind(this),
-            error: this.secureSubmitResponseHandler.bind(this),
-          }).tokenize();
-        }
+        TransITMagento.triggerSubmit();
       },
-      secureSubmitResponseHandler: function(response) {
+      transitResponseHandler: function(response) {
         var tokenField = $('hps_transit_token'),
           typeField = $('hps_transit_cc_type'),
           lastFourField = $('hps_transit_cc_last_four');
@@ -1506,7 +1190,7 @@ document.observe('dom:loaded', function() {
     });
   }
 
-  // Latest Version of IWD One page Checkou
+  // Latest Version of IWD One page Checkout
   if (
     typeof iwdOpcConfig !== 'undefined' &&
     typeof OnePage !== 'undefined' &&
@@ -1520,15 +1204,15 @@ document.observe('dom:loaded', function() {
       var _this = this;
       var _thisArguments = arguments;
       _this.showLoader(Singleton.get(OnePage).sectionContainer);
-      switch (_this.getPaymentMethodCode()) {
-        case Singleton.get(PaymentMethodIWD).code:
-          Singleton.get(PaymentMethodIWD).originalThis = _this;
-          Singleton.get(PaymentMethodIWD).originalArguments = _thisArguments;
-          Singleton.get(PaymentMethodIWD).savePayment();
-          break;
-        default:
-          OnePage.prototype.saveSection.apply(_this, _thisArguments);
+
+      if (_this.getPaymentMethodCode() !== Singleton.get(PaymentMethodIWD).code) {
+        OnePage.prototype.saveSection.apply(_this, _thisArguments);
+        return;
       }
+
+      Singleton.get(PaymentMethodIWD).originalThis = _this;
+      Singleton.get(PaymentMethodIWD).originalArguments = _thisArguments;
+      Singleton.get(PaymentMethodIWD).savePayment();
     };
 
     function PaymentMethodIWD() {
@@ -1594,13 +1278,13 @@ document.observe('dom:loaded', function() {
       }
 
       // Use stored card checked, get existing token data
-      if (this.secureSubmitUseStoredCard()) {
+      if (this.transitUseStoredCard()) {
         var radio = $$(
           '[name="hps_transit_stored_card_select"]:checked'
         )[0];
         var storedcardId = radio.value;
         var storedcardType = $(radio.id + '_card_type').value;
-        new Ajax.Request(PaymentMethod.prototype.secureSubmitGetTokenDataUrl, {
+        new Ajax.Request(PaymentMethod.prototype.transitGetTokenDataUrl, {
           method: 'post',
           parameters: {storedcard_id: storedcardId},
           onSuccess: function(response) {
@@ -1611,7 +1295,7 @@ document.observe('dom:loaded', function() {
               );
               $('hps_transit_cc_exp_year').value = data.token.cc_exp_year;
             }
-            this.secureSubmitResponseHandler.call(this, {
+            this.transitResponseHandler.call(this, {
               card_type: storedcardType,
               token_value: data.token.token_value,
               token_type: null, // 'supt'?
@@ -1627,49 +1311,16 @@ document.observe('dom:loaded', function() {
         });
       } else {
         // Use stored card not checked, get new token
-        if (TransITMagento.options.useIframes) {
-          TransITMagento.hps.Messages.post(
-            {
-              accumulateData: true,
-              action: 'tokenize',
-              data: TransITMagento.tokenizeOptions,
-            },
-            'cardNumber'
-          );
-        } else {
-          var validator = new Validation('hps_transit_cc_form');
-          if (validator.validate()) {
-            if (
-              $('hps_transit_exp_date') &&
-              $('hps_transit_exp_date').value
-            ) {
-              var date = $('hps_transit_exp_date').value.split('/');
-              $('hps_transit_cc_exp_month').value = date[0].trim();
-              $('hps_transit_cc_exp_year').value = date[1].trim();
-            }
-
-            new Heartland.HPS({
-              publicKey: PaymentMethod.prototype.secureSubmitPublicKey,
-              cardNumber: $('hps_transit_cc_number').value,
-              cardCvv: $('hps_transit_cvv_number').value,
-              cardExpMonth: $('hps_transit_cc_exp_month').value,
-              cardExpYear: $('hps_transit_cc_exp_year').value,
-              success: this.secureSubmitResponseHandler.bind(this),
-              error: this.secureSubmitResponseHandler.bind(this),
-            }).tokenize();
-          } else {
-            $ji('.iwd_opc_loader_wrapper.active').hide();
-          }
-        }
+        TransITMagento.triggerSubmit();
       }
     };
 
-    PaymentMethodIWD.prototype.secureSubmitUseStoredCard = function() {
+    PaymentMethodIWD.prototype.transitUseStoredCard = function() {
       var newRadio = $('hps_transit_stored_card_select_new');
       return !newRadio.checked;
     };
 
-    PaymentMethodIWD.prototype.secureSubmitResponseHandler = function(
+    PaymentMethodIWD.prototype.transitResponseHandler = function(
       response
     ) {
       var tokenField = $('hps_transit_token'),
@@ -1709,40 +1360,41 @@ document.observe('dom:loaded', function() {
       }
     };
   }
-    // FireCheckout
-    if (typeof FireCheckout !== 'undefined') {
-        Object.extend(FireCheckout.prototype, {
-            save: function (urlSuffix, forceSave) {
-                if (this.loadWaiting != false) {
-                    return;
-                }
 
-                if (!this.validate()) {
-                    return;
-                }
+  // FireCheckout
+  if (typeof window.FireCheckout !== 'undefined') {
+    Object.extend(FireCheckout.prototype, {
+      save: function (urlSuffix, forceSave) {
+        if (this.loadWaiting != false) {
+          return;
+        }
 
-                if (payment.currentMethod) {
-                    // HPS heartland
-                    if (!forceSave && payment.currentMethod.indexOf("hps_transit") === 0) {
-                        payment.save();
-                        return;
-                    }
-                    // HPS heartland
-                }
+        if (!this.validate()) {
+          return;
+        }
 
-                checkout.setLoadWaiting(true);
-                var params = Form.serialize(this.form, true);
-                $('review-please-wait').show();
+        if (payment.currentMethod) {
+          // HPS heartland
+          if (!forceSave && payment.currentMethod.indexOf("hps_transit") === 0) {
+            payment.save();
+            return;
+          }
+          // HPS heartland
+        }
 
-                urlSuffix = urlSuffix || '';
-                var request = new Ajax.Request(this.urls.save + urlSuffix, {
-                    method: 'post',
-                    parameters: params,
-                    onSuccess: this.setResponse.bind(this),
-                    onFailure: this.ajaxFailure.bind(this)
-                });
-            },
+        checkout.setLoadWaiting(true);
+        var params = Form.serialize(this.form, true);
+        $('review-please-wait').show();
+
+        urlSuffix = urlSuffix || '';
+        new Ajax.Request(this.urls.save + urlSuffix, {
+          method: 'post',
+          parameters: params,
+          onSuccess: this.setResponse.bind(this),
+          onFailure: this.ajaxFailure.bind(this)
         });
-    }
-    // FireCheckout
+      },
+    });
+  }
+  // FireCheckout
 });
