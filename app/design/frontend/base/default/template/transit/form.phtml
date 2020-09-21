@@ -1,12 +1,9 @@
 <?php /* @var $this Hps_Transit_Block_Form */
 $_code = $this->getMethodCode();
 $_loggedIn = Mage::getSingleton('customer/session')->isLoggedIn();
-$public_key = Mage::getModel('hps_transit/payment')->getConfigData('publicapikey');
 $token_data_url = Mage::getUrl('transit/storedcard/getTokenData', array('_secure' => TRUE));
 $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow_card_saving');
-$allow_heartland_gift = Mage::getModel('hps_transit/payment')->getConfigData('allow_heartland_gift');
 $use_iframes = true;
-$cca = $this->getCca();
 
 if ($_loggedIn && $allow_card_saving) {
     $customerStoredCards = Mage::helper('hps_transit')->getStoredCards( Mage::getSingleton('customer/session')->getCustomerId());
@@ -59,6 +56,7 @@ if ($_loggedIn && $allow_card_saving) {
                 <input type="hidden" id="<?= $_code ?>_token" name="payment[transit_token]">
                 <input type="hidden" id="<?= $_code ?>_cc_last_four" name="payment[cc_last_four]">
                 <input type="hidden" id="<?= $_code ?>_cc_type" name="payment[cc_type]">
+                <input type="hidden" id="<?= $_code ?>_cc_cid" name="payment[cc_cid]">
             </div>
 
 
@@ -74,7 +72,7 @@ if ($_loggedIn && $allow_card_saving) {
                 <div id="<?= $_code ?>_cc_cvv_iframe"></div>
             </div>
 
-            <?php if ($_loggedIn && $allow_card_saving && $public_key): ?>
+            <?php if ($_loggedIn && $allow_card_saving): ?>
                 <div class="save-card-checkbox">
                     <input type="checkbox" id="<?= $_code ?>_cc_save_future" name="payment[cc_save_future]" value="Y" autocomplete="off" />
                     <label id="ss-save-text" for="<?= $_code ?>_cc_save_future"><?= $this->__('&nbsp; &nbsp;Save this card for future use?') ?></label>
@@ -90,7 +88,7 @@ TransITMagento.init({
     code: '<?= $_code ?>',
     baseUrl: '<?= Mage::getBaseUrl() ?>',
     loggedIn: <?= $_loggedIn ? 'true' : 'false' ?>,
-    publicKey: '<?= $public_key ?>',
+    credentials: <?= $this->getCredentials() ?>,
     allowCardSaving: <?= $allow_card_saving ? 'true' : 'false' ?>,
     tokenDataUrl: '<?= $token_data_url ?>',
     allowGift: false,

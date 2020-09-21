@@ -1,16 +1,58 @@
 <?php
+
+use GlobalPayments\Api\AcceptorConfig;
+use GlobalPayments\Api\ServicesConfig;
+use GlobalPayments\Api\ServicesContainer;
+use GlobalPayments\Api\Entities\Enums\Environment;
+use GlobalPayments\Api\Entities\Enums\GatewayProvider;
+
 /**
  * @category   Hps
  * @package    Hps_Transit
  * @copyright  Copyright (c) 2015 Heartland Payment Systems (https://www.magento.com)
  * @license    https://github.com/hps/transit-magento-extension/blob/master/LICENSE  Custom License
  */
-
 class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
 {
     const XML_PATH_PAYMENT_HPS_SECURESUBMIT_USE_HTTP_PROXY  = 'payment/hps_transit/use_http_proxy';
     const XML_PATH_PAYMENT_HPS_SECURESUBMIT_HTTP_PROXY_HOST = 'payment/hps_transit/http_proxy_host';
     const XML_PATH_PAYMENT_HPS_SECURESUBMIT_HTTP_PROXY_PORT = 'payment/hps_transit/http_proxy_port';
+    const CONFIG_FORMAT = 'payment/hps_transit/%s';
+    
+    public function configureSDK()
+    {
+        $config = new ServicesConfig();
+
+        $pairs = [
+            'merchantId' => 'merchant_id',
+            'username' => 'user_id',
+            'password' => 'password',
+            'deviceId' => 'device_id',
+            'developerId' => 'developer_id',
+            'transactionKey' => 'transaction_key',
+        ];
+
+        foreach ($pairs as $sdk => $mage) {
+            $value = $this->getConfig($mage);
+
+            if (empty($value)) {
+                continue;
+            }
+
+            $config->{$sdk} = $value;
+        }
+
+        $config->environment = $this->getConfig('is_production') ? Environment::PRODUCTION : Environment::TEST;
+        $config->gatewayProvider = GatewayProvider::TRANSIT;
+        $config->acceptorConfig = new AcceptorConfig();
+
+        ServicesContainer::configure($config);
+    }
+
+    public function getConfig($key)
+    {
+        return Mage::getStoreConfig(sprintf(self::CONFIG_FORMAT, $key));
+    }
 
     /**
      * @param $customerId

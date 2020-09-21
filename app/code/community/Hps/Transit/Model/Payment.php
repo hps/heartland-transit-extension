@@ -115,7 +115,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             $cardData->expMonth = $payment->getCcExpMonth();
         }
 
-        $this->_configureSDK();
+        Mage::helper('hps_transit/data')->configureSDK();
         $address = $this->_getCardHolderAddress($order);
         $memo = $this->_getTxnMemo($order);
         $invoiceNumber = $this->_getTxnInvoiceNumber($order);
@@ -123,6 +123,9 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
         $cardOrToken = new CreditCardData();
         $cardOrToken->token = $secureToken;
+        $cardOrToken->expYear = $payment->getCcExpYear();
+        $cardOrToken->expMonth = $payment->getCcExpMonth();
+        $cardOrToken->cvn = $payment->getCcCid();
         $cardOrToken->cardHolderName = $this->_getCardHolderName($order);
 
         try {
@@ -377,22 +380,17 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
     protected function saveMultiUseToken($response, $cardData, $customerId, $cardType)
     {
-        $tokenData = $response->tokenData; /* @var $tokenData HpsTokenData */
+        $token = $response->token;
 
-        if ($tokenData->responseCode == '0') {
-            try {
-                $this->_getChargeService()->updateTokenExpiration($tokenData->tokenValue, $cardData->expMonth, $cardData->expYear);
-            } catch (Exception $e) {
-                Mage::logException($e);
-            }
-
-            if ($customerId > 0) {
-                Mage::helper('hps_transit')->saveMultiToken($tokenData->tokenValue, $cardData, $cardType, $customerId);
-            } else {
-                Mage::helper('hps_transit')->saveMultiToken($tokenData->tokenValue, $cardData, $cardType);
-            }
-        } else {
+        if (empty($token)) {
             Mage::log('Requested multi token has not been generated for the transaction # ' . $response->transactionId, Zend_Log::WARN);
+            return;
+        }
+
+        if ($customerId > 0) {
+            Mage::helper('hps_transit')->saveMultiToken($token, $cardData, $cardType, $customerId);
+        } else {
+            Mage::helper('hps_transit')->saveMultiToken($token, $cardData, $cardType);
         }
     }
 
@@ -657,28 +655,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             Mage::log('throwing user error with Mage_Core_Exception: ' . $error);
             throw new Mage_Core_Exception($error);
         }
-    }
-
-    protected function _configureSDK()
-    {
-        $config = new ServicesConfig();
-
-        // Support HTTP proxy
-        if (Mage::getStoreConfig('payment/hps_transit/use_http_proxy')) {
-            $config->useProxy = true;
-            $config->proxyOptions = array(
-                'proxy_host' => Mage::getStoreConfig('payment/hps_transit/http_proxy_host'),
-                'proxy_port' => Mage::getStoreConfig('payment/hps_transit/http_proxy_port'),
-            );
-        }
-
-        $config->secretApiKey = 'skapi_cert_MTyMAQBiHVEAewvIzXVFcmUd2UcyBge_eCpaASUp0A';
-        $config->versionNumber = '1573';
-        $config->developerId = '002914';
-        $config->gatewayProvider = GatewayProvider::PORTICO;
-        $config->environment = Environment::TEST;
-
-        ServicesContainer::configure($config);
     }
 
     /**

@@ -103,9 +103,7 @@ if (!String.prototype.trim) {
       }
     },
     setupFields: function() {
-      GlobalPayments.configure({
-        publicApiKey: 'pkapi_cert_jKc1FtuyAydZhZfbB3',
-      });
+      GlobalPayments.configure(THIS.options.credentials);
 
       THIS.cardForm = GlobalPayments.ui.form({
         fields: {
@@ -255,6 +253,8 @@ if (!String.prototype.trim) {
 
         $(THIS.options.code + '_token').value = resp.paymentReference;
 
+        // TODO: throw error when exp date /cvv isn't available
+
         if (resp.details) {
           $(
             THIS.options.code + '_cc_last_four'
@@ -268,7 +268,10 @@ if (!String.prototype.trim) {
           ).value = resp.details.expiryYear.trim();
         }
 
-        THIS.completeCheckout();
+        THIS.cardForm.frames["card-cvv"].getCvv().then(function (c) {
+          $(THIS.options.code + '_cc_cid').value = c;
+          THIS.completeCheckout();
+        });
       });
 
       var onError = function(response) {

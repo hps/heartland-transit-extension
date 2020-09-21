@@ -6,13 +6,13 @@ $_storedCards = Mage::helper('hps_transit')->getStoredCards(Mage::getSingleton('
 <div class="box-account">
     <?php if (count($_storedCards)): ?>
 
-            <h2><?php echo $this->__('Saved Credit Cards') ?></h2>
+        <h2><?php echo $this->__('Saved Credit Cards') ?></h2>
 
         <ul id="hps-saved-cards" class="saved-card-table">
             
                 <li>
                   <?php foreach ($_storedCards->getData() as $card): ?>
-                    <div class="icon-<?= strtolower($card['cc_type'])?>-stored" id="stored-icon-styles">&nbsp;</div>
+                    <div class="icon-<?= strtolower($card['cc_type'])?>-stored">&nbsp;</div>
                     <div class="stored-card-info">
                         <span class="cc"><?php echo $card['cc_type'] ." " ."ending in   ************".$card['cc_last4'] ?></span>            <br/>
                         <span class="exp"><?php echo "expires on" ." "  .$card['cc_exp_month'] ."-".$card['cc_exp_year'] ?></span>
