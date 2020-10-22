@@ -70,7 +70,7 @@
                 <password backend_model="adminhtml/system_config_backend_encrypted" />
                 <device_id backend_model="adminhtml/system_config_backend_encrypted" />
                 <transaction_key backend_model="adminhtml/system_config_backend_encrypted" />
-                <developer_id>003226G001</developer_id>
+                <developer_id>003226G003</developer_id>
                 <is_production>no</is_production>
                 <fraud_velocity_attempts>3</fraud_velocity_attempts>
                 <fraud_velocity_timeout>10</fraud_velocity_timeout>

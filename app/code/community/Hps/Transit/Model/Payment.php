@@ -146,7 +146,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             }
 
             $response = $builder->execute();
-            
+
             if ($response->responseCode !== '00') {
                 // TODO: move this
                 // $this->updateVelocity($e);
@@ -200,68 +200,12 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
      */
     public function refund(Varien_Object $payment, $amount)
     {
-        $transactionDetails = $this->getTransactionDetails($payment);
-        if ($this->canVoid($payment) && $this->transactionActiveOnGateway($transactionDetails)) {
-            if ($this->getCurrentAuthorizationAmount($transactionDetails) > $amount) {
-                $this->_reversal($payment, $transactionDetails, $amount);
-            } else {
-                $this->void($payment);
-            }
-        } else {
-            $this->_refund($payment, $amount);
-        }
+        Mage::helper('hps_transit/data')->configureSDK();
 
-        return $this;
-    }
-
-
-    /**
-     * Void payment abstract method
-     *
-     * @param Varien_Object $payment
-     *
-     * @return Hps_Transit_Model_Payment
-     */
-    public function void(Varien_Object $payment)
-    {
-        $transactionId = null;
-
-        if (false !== ($parentId = $this->getParentTransactionId($payment))) {
-            $transactionId = $parentId;
-        } else {
-            $transactionId = $payment->getCcTransId();
-        }
-
-        try {
-            $voidResponse = Transaction::fromId($transactionId)->void()->execute();
-            $payment
-                ->setTransactionId($voidResponse->transactionId)
-                ->setParentTransactionId($transactionId)
-                ->setIsTransactionClosed(1)
-                ->setShouldCloseParentTransaction(1);
-        } catch (ApiException $e) {
-            $this->_debugChargeService($e);
-            $this->throwUserError($e->getMessage());
-        } catch (Exception $e) {
-            $this->_debugChargeService($e);
-            Mage::logException($e);
-            $this->throwUserError(Mage::helper('hps_transit')->__('An unexpected error occurred. Please try again or contact a system administrator.'));
-        }
-
-        return $this;
-    }
-
-    /**
-     * @param Varien_Object|Mage_Sales_Model_Order_Payment $payment
-     * @param $amount
-     * @return Hps_Transit_Model_Payment
-     */
-    public function _refund(Varien_Object $payment, $amount)
-    {
         $transactionId = $payment->getCcTransId();
         /* @var $order Mage_Sales_Model_Order */
         $order = $payment->getOrder();
-        $address = $this->_getCardHolderAddress($order);
+        // $address = $this->_getCardHolderAddress($order);
         $memo = $this->_getTxnMemo($order);
         $invoiceNumber = $this->_getTxnInvoiceNumber($order);
         $customerId = $this->_getTxnCustomerId($order);
@@ -269,7 +213,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         try {
             $refundResponse = Transaction::fromId($transactionId)->refund($amount)
                 ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                ->withAddress($address)
                 ->withDescription($memo)
                 ->withInvoiceNumber($invoiceNumber)
                 ->withCustomerId($customerId)
@@ -293,13 +236,15 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
 
     /**
-     * @param Varien_Object|Mage_Sales_Model_Order_Payment  $payment
-     * @param HpsReportTransactionDetails                   $transactionDetails
-     * @param float                                         $newAuthAmount
+     * Void payment abstract method
+     *
+     * @param Varien_Object $payment
+     *
      * @return Hps_Transit_Model_Payment
      */
-    public function _reversal(Varien_Object $payment, HpsReportTransactionDetails $transactionDetails, $newAuthAmount)
+    public function void(Varien_Object $payment)
     {
+        Mage::helper('hps_transit/data')->configureSDK();
 
         $transactionId = null;
 
@@ -308,23 +253,11 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         } else {
             $transactionId = $payment->getCcTransId();
         }
-        $newAuthAmount = $this->getCurrentAuthorizationAmount($transactionDetails) - $newAuthAmount;
-        /* @var $order Mage_Sales_Model_Order */
-        $order = $payment->getOrder();
-        $memo = $this->_getTxnMemo($order);
-        $invoiceNumber = $this->_getTxnInvoiceNumber($order);
-        $customerId = $this->_getTxnCustomerId($order);
 
         try {
-            $reverseResponse = Transaction::fromId($transactionId)->reverse($transactionDetails->authorizedAmount)
-                ->withCurrency(strtolower($order->getBaseCurrencyCode()))
-                ->withDescription($memo)
-                ->withInvoiceNumber($invoiceNumber)
-                ->withCustomerId($customerId)
-                ->withAuthAmount($newAuthAmount)
-                ->execute();
+            $voidResponse = Transaction::fromId($transactionId)->void()->execute();
             $payment
-                ->setTransactionId($reverseResponse->transactionId)
+                ->setTransactionId($voidResponse->transactionId)
                 ->setParentTransactionId($transactionId)
                 ->setIsTransactionClosed(1)
                 ->setShouldCloseParentTransaction(1);
@@ -334,7 +267,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         } catch (Exception $e) {
             $this->_debugChargeService($e);
             Mage::logException($e);
-            $this->throwUserError($e->getMessage());
+            $this->throwUserError(Mage::helper('hps_transit')->__('An unexpected error occurred. Please try again or contact a system administrator.'));
         }
 
         return $this;
@@ -801,7 +734,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             case '76':
             case '77':
             case '96':
-            case 'EC':  
+            case 'EC':
                 $result = "An error occurred while processing the card.";
                 break;
             case '13':

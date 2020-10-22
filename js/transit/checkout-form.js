@@ -232,7 +232,7 @@ if (!String.prototype.trim) {
             },
           },
         }
-      })
+      });
 
       THIS.cardForm.on('token-success', function(resp) {
         // BEGIN: AheadWorks OneStepCheckout fix

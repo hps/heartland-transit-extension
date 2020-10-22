@@ -3,10 +3,8 @@ $_code = $this->getMethodCode();
 $store = Mage::getSingleton('adminhtml/session_quote')->getStore();
 $storeId = ($store) ? $store->getId() : NULL;
 $customerStoredCards = $this->getCustomerStoredCards();
-$useStoredCard = !! $this->getInfoData('transit_use_stored_card');
-$public_key = Mage::getModel('hps_transit/payment')->getConfigData('publicapikey', $storeId);
+$useStoredCard = (bool) $this->getInfoData('transit_use_stored_card');
 $customerId = Mage::getSingleton('adminhtml/session_quote')->getCustomerId();
-// $customerStoredCards = Mage::helper('hps_transit')->getStoredCards( $customerId );
 $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow_card_saving', $storeId);
 ?>
 
@@ -30,54 +28,30 @@ $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow
             </div>
         </li>
     <?php endif ?>
-    <li class="stored_cards_selected">
-        <label for="<?php echo $_code ?>_cc_type" ><?php echo Mage::helper('payment')->__('Credit Card Type') ?><span class="required">*</span></label>
-        <div class="input-box">
-            <select id="<?php echo $_code ?>_cc_type" name="payment[cc_type]" class="required-entry validate-cc-type-select">
-                <option value=""><?php echo $this->__('--Please Select--') ?></option>
-                <?php $_ccType = $this->getInfoData('cc_type') ?>
-                <?php foreach ($this->getCcAvailableTypes() as $_typeCode => $_typeName) : ?>
-                    <option value="<?php echo $_typeCode ?>"<?php if($_typeCode == $_ccType) : ?> selected="selected"<?php endif ?>><?php echo $_typeName ?></option>
-                <?php endforeach ?>
-            </select>
-        </div>
-    </li>
-    <li class="stored_cards_selected">
-        <label for="<?php echo $_code ?>_cc_number"><?php echo Mage::helper('payment')->__('Credit Card Number') ?><span class="required">*</span></label>
-        <div class="input-box">
-            <input type="text" id="<?php echo $_code ?>_cc_number" data-encrypted-name="payment[cc_number]"  title="<?php echo Mage::helper('payment')->__('Credit Card Number') ?>"  class="input-text validate-cc-number validate-cc-type required-entry" value=""/>
-            <input type="hidden" id="<?php echo $_code ?>_use_credit_card" name="payment[use_credit_card]" value="1" />
-            <input type="hidden" id="<?php echo $_code ?>_token" name="payment[transit_token]" value="">
-            <input type="hidden" id="<?php echo $_code ?>_cc_last_four" name="payment[cc_last_four]" value="">
-        </div>
-    </li>
-    <li class="stored_cards_selected">
-        <div class="input-box">
-            <label for="<?php echo $_code ?>_expiration"><?php echo Mage::helper('payment')->__('Expiration Date') ?> <span class="required">*</span></label><br/>
-            <select id="<?php echo $_code ?>_expiration" style="width:140px;" name="payment[cc_exp_month]" class="validate-cc-exp required-entry">
-                <?php $_ccExpMonth = $this->getInfoData('cc_exp_month') ?>
-                <?php foreach ($this->getCcMonths() as $k=>$v): ?>
-                    <option value="<?php echo $k ?>" <?php if($k==$_ccExpMonth): ?>selected="selected"<?php endif ?>><?php echo $v ?></option>
-                <?php endforeach ?>
-            </select>
-            <?php $_ccExpYear = $this->getInfoData('cc_exp_year') ?>
-            <select id="<?php echo $_code ?>_expiration_yr" style="width:103px;" name="payment[cc_exp_year]" class="required-entry">
-                <?php foreach ($this->getCcYears() as $k=>$v): ?>
-                    <option value="<?php echo $k ? $k : '' ?>" <?php if($k==$_ccExpYear): ?>selected="selected"<?php endif ?>><?php echo $v ?></option>
-                <?php endforeach ?>
-            </select>
-        </div>
-    </li>
-    <?php if($this->hasVerification()): ?>
-        <li class="stored_cards_selected">
-            <div class="input-box">
-                <label for="<?php echo $_code ?>_cc_cid"><?php echo Mage::helper('payment')->__('Card Verification Number') ?> <span class="required">*</span></label><br/>
-                <input type="text" title="<?php echo Mage::helper('payment')->__('Card Verification Number') ?>" class="required-entry input-text validate-cc-cvn" id="<?php echo $_code ?>_cc_cid" style="width:3em;" value=""/>
-            </div>
-        </li>
-    <?php endif; ?>
 
-    <?php if ($allow_card_saving && $public_key): ?>
+    <li class="stored_cards_selected">
+        <label for="<?= $_code ?>_cc_number"><?= $this->__('Credit Card Number') ?> <span class="required">&nbsp;</span></label>
+        <div id="<?= $_code ?>_cc_number_iframe"></div>
+        <input type="hidden" id="<?= $_code ?>_token" name="payment[transit_token]">
+        <input type="hidden" id="<?= $_code ?>_cc_last_four" name="payment[cc_last_four]">
+        <input type="hidden" id="<?= $_code ?>_cc_type" name="payment[cc_type]">
+        <input type="hidden" id="<?= $_code ?>_cc_cid" name="payment[cc_cid]">
+    </li>
+
+
+    <li class="stored_cards_selected">
+        <label for="<?= $_code ?>_expiration"><?= $this->__('Expiration Date') ?> <span class="required">&nbsp;</span></label>
+        <div id="<?= $_code ?>_cc_exp_iframe"></div>
+        <input type="hidden" id="<?= $_code ?>_cc_exp_month" name="payment[cc_exp_month]">
+        <input type="hidden" id="<?= $_code ?>_cc_exp_year" name="payment[cc_exp_year]">
+    </li>
+
+    <li class="stored_cards_selected">
+        <label for="<?= $_code ?>_cvv_number"><?= $this->__('Card Verification Number') ?> <span class="required">&nbsp;</span></label>
+        <div id="<?= $_code ?>_cc_cvv_iframe"></div>
+    </li>
+
+    <?php if ($allow_card_saving): ?>
         <li class="stored_cards_selected">
             <label for="<?php echo $_code ?>_cc_save_future"><?php echo $this->__('Save this card for future use?') ?></label>
             <div class="input-box">
@@ -90,37 +64,36 @@ $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow
 <script type="text/javascript">
 //<![CDATA[
 (function () {
-    order.secureSubmitPublicKey = '<?php echo $public_key ?>';
-    order.secureSubmitGetTokenDataUrl = '<?php echo Mage::getUrl('transit/storedcard/getTokenData', array('_secure' => TRUE)) ?>';
-
     <?php if (count($customerStoredCards)) : ?>
-    order.customerStoredCards = <?php echo json_encode($this->getJsConfig()) ?>;
-    $('<?php echo $_code ?>_stored_card_checkbox').stopObserving('click').observe('click', toggleStoredCards);
-    function toggleStoredCards() {
-        // Toggle between the saved credit cards and a new card form
-        $$('.stored_cards_selected').invoke('toggle');
-        $('<?php echo $_code ?>_stored_cards').toggle();
-        $('<?php echo $_code ?>_cc_type')
-            .toggleClassName('validate-cc-type-select')
-            .toggleClassName('required-entry');
-        $('<?php echo $_code ?>_cc_number')
-            .toggleClassName('validate-cc-number')
-            .toggleClassName('validate-cc-type')
-            .toggleClassName('required-entry');
-        $('<?php echo $_code ?>_expiration')
-            .toggleClassName('validate-cc-exp')
-            .toggleClassName('required-entry');
-        $('<?php echo $_code ?>_expiration_yr')
-            .toggleClassName('required-entry');
-        $('<?php echo $_code ?>_cc_cid')
-            .toggleClassName('validate-cc-cvn')
-            .toggleClassName('required-entry');
-        $('<?php echo $_code ?>_use_credit_card').value = $('<?php echo $_code ?>_stored_card_checkbox').checked ? '0' : '1';
-    }
-    <?php if ($useStoredCard) : ?>
-        toggleStoredCards();
+        order.customerStoredCards = <?php echo json_encode($this->getJsConfig()) ?>;
+        var storedCardCheckbox = $('<?php echo $_code ?>_stored_card_checkbox');
+        storedCardCheckbox.stopObserving('click').observe('click', toggleStoredCards);
+        function toggleStoredCards() {
+            // Toggle between the saved credit cards and a new card form
+            $$('.stored_cards_selected').invoke('toggle');
+            $('<?php echo $_code ?>_stored_cards').toggle();
+            var useStoredCard = $('<?php echo $_code ?>_use_credit_card');
+            if (useStoredCard) {
+                useStoredCard.value = storedCardCheckbox && storedCardCheckbox.checked ? '0' : '1';
+            }
+        }
+        <?php if ($useStoredCard) : ?>
+            toggleStoredCards();
+        <?php endif ?>
     <?php endif ?>
-    <?php endif ?>
+
+    window.TransITMagentoAdmin = window.TransITMagentoAdmin || {};
+    window.TransITMagentoAdmin.options = {
+        code: '<?= $_code ?>',
+        credentials: <?= $this->getCredentials() ?>,
+        baseUrl: '<?= Mage::getBaseUrl() ?>',
+        tokenDataUrl: '<?php echo Mage::getUrl('transit/storedcard/getTokenData', array('_secure' => TRUE)) ?>',
+        iframeTargets: {
+            cardNumber: '#<?= $_code ?>_cc_number_iframe',
+            cardExpiration: '#<?= $_code ?>_cc_exp_iframe',
+            cardCvv: '#<?= $_code ?>_cc_cvv_iframe'
+        }
+    };
 })();
 //]]>
 </script>

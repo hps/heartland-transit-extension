@@ -2,15 +2,6 @@
 <layout version="0.1.0">
     <adminhtml_sales_order_create_index>
         <reference name="head">
-            <block type="core/text" name="hps.transit.js_library">
-                <action method="setText" ifconfig="payment/hps_transit/active">
-                    <text>
-                        <![CDATA[
-                            <script type="text/javascript" src="https://api2.heartlandportico.com/SecureSubmit.v1/token/gp-1.6.0/globalpayments.js"></script>
-                        ]]>
-                    </text>
-                </action>
-            </block>
             <action method="addJs" ifconfig="payment/hps_transit/active"><file>transit/admin-checkout.js</file></action>
         </reference>
     </adminhtml_sales_order_create_index>
