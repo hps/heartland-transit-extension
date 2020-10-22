@@ -1,3 +1,4 @@
-
 app/design/frontend/base/default/template/transit.zip
 app/design/frontend/base/default/template/transit/hps-styles.css
+.vscode/
+node_modules/

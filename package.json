@@ -1,0 +1,23 @@
+{
+  "name": "heartland-transit-extension",
+  "version": "1.0.0",
+  "description": "This extension allows Magento to use the Heartland Payment Systems Gateway. All card data is tokenized using Heartland's single-use tokenization solution.",
+  "main": "index.js",
+  "scripts": {
+    "cypress:open": "cypress open",
+    "test": "cypress run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hps/heartland-transit-extension.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/hps/heartland-transit-extension/issues"
+  },
+  "homepage": "https://github.com/hps/heartland-transit-extension#readme",
+  "devDependencies": {
+    "cypress": "^5.4.0"
+  }
+}
