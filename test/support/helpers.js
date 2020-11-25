@@ -31,7 +31,9 @@ export function enterPaymentInformation(data) {
 
   cy.get("#hps_transit_cc_number_iframe > iframe").then(enterInIframe(data.number || '4242424242424242'));
   cy.get("#hps_transit_cc_exp_iframe > iframe").then(enterInIframe(data.expDate || '12 / 2025'));
-  cy.get("#hps_transit_cc_cvv_iframe > iframe").then(enterInIframe(data.cvv || '123'));
+  if (data.cvv !== false) {
+    cy.get("#hps_transit_cc_cvv_iframe > iframe").then(enterInIframe(data.cvv || '123'));
+  }
 
   if (data.save) {
     cy.get('#hps_transit_cc_save_future').check();
@@ -89,8 +91,14 @@ export function goToCheckout() {
   cy.get('.btn-checkout:first').click();
 }
 
-export function addAProductToCart() {
-  cy.get('.products-grid .item .actions .btn-cart').click();
+export function addAProductToCart(productUrlKey) {
+  if (!productUrlKey) {
+    cy.get('.products-grid .item:first .actions .btn-cart').click();
+    return;
+  }
+
+  cy.visit(getStorefrontUrl() + '/index.php/' + productUrlKey + '.html');
+  cy.get('#product_addtocart_form .btn-cart').click();
 }
 
 export function findACategory() {
@@ -112,4 +120,21 @@ export function enterInIframe(content, selector) {
       .find(selector)
       .type(content, { force: true });
   };
+}
+
+export function adminLogin() {
+  typeInputValue('#username', 'admin');
+  typeInputValue('#login', '69fLgKZUefbBMPn');
+  cy.get('#loginForm input[type="submit"]').click();
+}
+
+export function setPaymentAction(action) {
+  // goto system config
+  cy.get('#nav > li:last-child > ul > li:last-child a').should('have.text', 'Configuration').click({ force: true });
+
+  cy.get('#system_config_tabs dd:nth-of-type(9) a').click();
+
+  cy.get('#payment_hps_transit_payment_action').select(action);
+
+  cy.get('#content .form-buttons button[title="Save Config"]:first').click();
 }

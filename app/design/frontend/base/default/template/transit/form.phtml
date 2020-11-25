@@ -32,6 +32,10 @@ if ($_loggedIn && $allow_card_saving) {
             </label>
           </li>
         <?php endforeach ?>
+
+        <li style="display:none">
+            <input type="hidden" id="<?= $_code ?>_use_stored_card" name="payment[cc_use_multi]">
+        </li>
     <?php endif ?>
 
     <!-- START NEW CARD -->

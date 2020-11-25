@@ -708,6 +708,7 @@ document.observe('dom:loaded', function() {
                 $('hps_transit_cc_exp_year').value =
                   data.token.cc_exp_year;
               }
+              $('hps_transit_use_stored_card').value = "1";
               this.transitResponseHandler.call(this, {
                 card_type: storedcardType,
                 token_value: data.token.token_value,
@@ -923,6 +924,7 @@ document.observe('dom:loaded', function() {
           var radio = $$(
             '[name="hps_transit_stored_card_select"]:checked'
           )[0];
+          $('hps_transit_use_stored_card').value = "1";
           var storedcardId = radio.value;
           var storedcardType = $(radio.id + '_card_type').value;
           new Ajax.Request(window.payment.transitGetTokenDataUrlOSC, {
@@ -1018,6 +1020,7 @@ document.observe('dom:loaded', function() {
           var radio = $$(
             '[name="hps_transit_stored_card_select"]:checked'
           )[0];
+          $('hps_transit_use_stored_card').value = "1";
           var storedcardId = radio.value;
           var storedcardType = $(radio.id + '_card_type').value;
           new Ajax.Request(window.payment.transitGetTokenDataUrlOSC, {
@@ -1285,6 +1288,7 @@ document.observe('dom:loaded', function() {
         var radio = $$(
           '[name="hps_transit_stored_card_select"]:checked'
         )[0];
+        $('hps_transit_use_stored_card').value = "1";
         var storedcardId = radio.value;
         var storedcardType = $(radio.id + '_card_type').value;
         new Ajax.Request(PaymentMethod.prototype.transitGetTokenDataUrl, {

@@ -11,6 +11,10 @@
     }
   };
   window.TransITMagentoAdmin.setupFields = function () {
+    if (!window.TransITMagentoAdmin.options) {
+      return;
+    }
+
     GlobalPayments.configure(window.TransITMagentoAdmin.options.credentials);
 
     window.TransITMagentoAdmin.cardForm = GlobalPayments.ui.form({

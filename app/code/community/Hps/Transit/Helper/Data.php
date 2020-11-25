@@ -3,6 +3,7 @@
 use GlobalPayments\Api\AcceptorConfig;
 use GlobalPayments\Api\ServicesConfig;
 use GlobalPayments\Api\ServicesContainer;
+use GlobalPayments\Api\Entities\Enums\CardDataSource;
 use GlobalPayments\Api\Entities\Enums\Environment;
 use GlobalPayments\Api\Entities\Enums\GatewayProvider;
 
@@ -18,8 +19,8 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
     const XML_PATH_PAYMENT_HPS_SECURESUBMIT_HTTP_PROXY_HOST = 'payment/hps_transit/http_proxy_host';
     const XML_PATH_PAYMENT_HPS_SECURESUBMIT_HTTP_PROXY_PORT = 'payment/hps_transit/http_proxy_port';
     const CONFIG_FORMAT = 'payment/hps_transit/%s';
-    
-    public function configureSDK()
+
+    public function configureSDK($isTsep = false)
     {
         $config = new ServicesConfig();
 
@@ -27,7 +28,7 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
             'merchantId' => 'merchant_id',
             'username' => 'user_id',
             'password' => 'password',
-            'deviceId' => 'device_id',
+            'deviceId' => $isTsep ? 'device_id_tsep' : 'device_id',
             'developerId' => 'developer_id',
             'transactionKey' => 'transaction_key',
         ];
@@ -45,6 +46,10 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
         $config->environment = $this->getConfig('is_production') ? Environment::PRODUCTION : Environment::TEST;
         $config->gatewayProvider = GatewayProvider::TRANSIT;
         $config->acceptorConfig = new AcceptorConfig();
+
+        if ($this->isAdmin()) {
+            $config->acceptorConfig->cardDataSource = CardDataSource::MAIL;
+        }
 
         ServicesContainer::configure($config);
     }
@@ -96,11 +101,23 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
                 $storedCard->save();
                 return $storedCard;
             }catch (Exception $e){
-                if($e->getCode() == '23000'){
+                if ($e->getCode() == '23000'){
                     Mage::throwException($this->__('Customer Not Found  : Card could not be saved.'));
                 }
                 Mage::throwException($e->getMessage());
             }
         }
+    }
+
+    protected function isAdmin() {
+        if (Mage::app()->getStore()->isAdmin()) {
+            return true;
+        }
+
+        if (Mage::getDesign()->getArea() == 'adminhtml') {
+            return true;
+        }
+
+        return false;
     }
 }

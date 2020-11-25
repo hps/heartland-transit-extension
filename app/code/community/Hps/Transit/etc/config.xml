@@ -69,6 +69,7 @@
                 <user_id backend_model="adminhtml/system_config_backend_encrypted" />
                 <password backend_model="adminhtml/system_config_backend_encrypted" />
                 <device_id backend_model="adminhtml/system_config_backend_encrypted" />
+                <device_id_tsep backend_model="adminhtml/system_config_backend_encrypted" />
                 <transaction_key backend_model="adminhtml/system_config_backend_encrypted" />
                 <developer_id>003226G003</developer_id>
                 <is_production>no</is_production>

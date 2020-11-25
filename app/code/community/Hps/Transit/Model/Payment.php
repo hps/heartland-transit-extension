@@ -1,11 +1,9 @@
 <?php
 
-use GlobalPayments\Api\ServicesConfig;
-use GlobalPayments\Api\ServicesContainer;
 use GlobalPayments\Api\Entities\Address;
+use GlobalPayments\Api\Entities\StoredCredential;
 use GlobalPayments\Api\Entities\Transaction;
-use GlobalPayments\Api\Entities\Enums\Environment;
-use GlobalPayments\Api\Entities\Enums\GatewayProvider;
+use GlobalPayments\Api\Entities\Enums\StoredCredentialInitiator;
 use GlobalPayments\Api\Entities\Exceptions\ApiException;
 use GlobalPayments\Api\PaymentMethods\CreditCardData;
 
@@ -104,6 +102,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         $additionalData = new Varien_Object($payment->getAdditionalData() ? unserialize($payment->getAdditionalData()) : null);
         $secureToken = $additionalData->getTransitToken() ? $additionalData->getTransitToken() : null;
         $saveCreditCard = (bool) $additionalData->getCcSaveFuture();
+        $useStoredCard = (bool) $additionalData->getCcUseMulti();
         $customerId = $additionalData->getCustomerId();
 
         $cardType = $payment->getCcType();
@@ -138,6 +137,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                 $requestType = $capture ? 'charge' : 'authorize';
                 $builder = $cardOrToken->{$requestType}($amount)
                     ->withCurrency(strtolower($order->getBaseCurrencyCode()))
+                    ->withClientTransactionId(time())
                     ->withAddress($address)
                     ->withRequestMultiUseToken($multiToken)
                     ->withDescription($memo)
@@ -145,11 +145,24 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                     ->withCustomerId($customerId);
             }
 
+            if ($useStoredCard === true) {
+                $storedCreds = new StoredCredential;
+                $storedCreds->initiator = $this->isAdmin()
+                    ? StoredCredentialInitiator::MERCHANT
+                    : StoredCredentialInitiator::CARDHOLDER;
+
+                $builder = $builder->withStoredCredential($storedCreds);
+            }
+
             $response = $builder->execute();
 
-            if ($response->responseCode !== '00') {
+            if ($response->responseCode !== '00' || $response->responseMessage === 'Partially Approved') {
                 // TODO: move this
                 // $this->updateVelocity($e);
+
+                if ($response->responseCode === '10' || $response->responseMessage === 'Partially Approved') {
+                    try { $response->void()->execute(); } catch (\Exception $e) {}
+                }
 
                 if (!$this->_allow_fraud || $response->responseCode !== 'FR') {
                     throw new ApiException($this->mapResponseCodeToFriendlyMessage($response->responseCode));
@@ -542,6 +555,10 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             $details['cc_save_future'] = 1;
         }
 
+        if ($data->getData('cc_use_multi')) {
+            $details['cc_use_multi'] = 1;
+        }
+
         if ($data->getData('transit_token')) {
             $details['transit_token'] = $data->getData('transit_token');
         }
@@ -771,5 +788,17 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
 
         return $result;
+    }
+
+    protected function isAdmin() {
+        if (Mage::app()->getStore()->isAdmin()) {
+            return true;
+        }
+
+        if (Mage::getDesign()->getArea() == 'adminhtml') {
+            return true;
+        }
+
+        return false;
     }
 }

@@ -1,5 +1,6 @@
 {
-  "defaultCommandTimeout": 15000,
+  "pageLoadTimeout": 60000,
+  "defaultCommandTimeout": 30000,
   "fixturesFolder": "test/fixtures",
   "integrationFolder": "test/integration",
   "pluginsFile": "test/plugins",
