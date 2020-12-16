@@ -119,9 +119,9 @@ context('Frontend - Checkout', () => {
     checkoutAsGuest();
     enterBillingInformation();
     confirmShippingMethod();
-    const amexNoCvv = Object.assign({}, amex);
-    amexNoCvv.cvv = false;
-    enterPaymentInformation(amexNoCvv);
+    // const amexNoCvv = Object.assign({}, amex);
+    // amexNoCvv.cvv = false;
+    enterPaymentInformation(amex);
     placeOrder();
     confirmSuccessfulCheckout();
   });

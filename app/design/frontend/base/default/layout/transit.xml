@@ -60,7 +60,7 @@
         <reference name="customer_account_navigation">
           <action method="addLink" ifconfig="payment/hps_transit/active">
             <name>save_token</name>
-            <path>transit/storedcard/index</path>
+            <path>hps_transit/storedcard/index</path>
             <label>Manage Cards</label>
           </action>
         </reference>
