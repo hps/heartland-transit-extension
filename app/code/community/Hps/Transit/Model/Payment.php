@@ -1,8 +1,10 @@
 <?php
 
+use Mage;
 use GlobalPayments\Api\Entities\Address;
 use GlobalPayments\Api\Entities\StoredCredential;
 use GlobalPayments\Api\Entities\Transaction;
+use GlobalPayments\Api\Entities\Enums\CardType;
 use GlobalPayments\Api\Entities\Enums\StoredCredentialInitiator;
 use GlobalPayments\Api\Entities\Exceptions\ApiException;
 use GlobalPayments\Api\PaymentMethods\CreditCardData;
@@ -112,6 +114,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             $cardData->number = $payment->getCcLast4();
             $cardData->expYear = $payment->getCcExpYear();
             $cardData->expMonth = $payment->getCcExpMonth();
+            $cardData->cardType = $this->_getCardType($cardType);
         }
 
         Mage::helper('hps_transit/data')->configureSDK();
@@ -126,6 +129,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         $cardOrToken->expMonth = $payment->getCcExpMonth();
         $cardOrToken->cvn = $payment->getCcCid();
         $cardOrToken->cardHolderName = $this->_getCardHolderName($order);
+        $cardOrToken->cardType = $this->_getCardType($cardType);
 
         try {
             $this->checkVelocity();
@@ -143,13 +147,16 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                     ->withDescription($memo)
                     ->withInvoiceNumber($invoiceNumber)
                     ->withCustomerId($customerId);
+
+                $customer = Mage::getSingleton('customer/session')->getCustomer();
+                if ($customer) {
+                    $builder = $builder->withLastRegisteredDate(Mage::getModel('core/date')->date('m/d/Y', $customer->getCreatedAt()));
+                }
             }
 
             if ($useStoredCard === true) {
                 $storedCreds = new StoredCredential;
-                $storedCreds->initiator = $this->isAdmin()
-                    ? StoredCredentialInitiator::MERCHANT
-                    : StoredCredentialInitiator::CARDHOLDER;
+                $storedCreds->initiator = StoredCredentialInitiator::MERCHANT;
 
                 $builder = $builder->withStoredCredential($storedCreds);
             }
@@ -161,7 +168,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                 // $this->updateVelocity($e);
 
                 if ($response->responseCode === '10' || $response->responseMessage === 'Partially Approved') {
-                    try { $response->void()->execute(); } catch (\Exception $e) {}
+                    try { $response->void()->withDescription('POST_AUTH_USER_DECLINE')->execute(); } catch (\Exception $e) {}
                 }
 
                 if (!$this->_allow_fraud || $response->responseCode !== 'FR') {
@@ -268,7 +275,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
 
         try {
-            $voidResponse = Transaction::fromId($transactionId)->void()->execute();
+            $voidResponse = Transaction::fromId($transactionId)->void()->withDescription('POST_AUTH_USER_DECLINE')->execute();
             $payment
                 ->setTransactionId($voidResponse->transactionId)
                 ->setParentTransactionId($transactionId)
@@ -800,5 +807,31 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         }
 
         return false;
+    }
+
+    private function _getCardType($cardType)
+    {
+        $result = null;
+
+        switch ($cardType) {
+            case 'visa':
+                $result = CardType::VISA;
+                break;
+            case 'mastercard':
+                $result = CardType::MASTERCARD;
+                break;
+            case 'amex':
+                $result = CardType::AMEX;
+                break;
+            case 'diners':
+            case 'discover':
+            case 'jcb':
+                $result = CardType::DISCOVER;
+                break;
+            default:
+                break;
+        }
+
+        return $result;
     }
 }

@@ -46,6 +46,7 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
         $config->environment = $this->getConfig('is_production') ? Environment::PRODUCTION : Environment::TEST;
         $config->gatewayProvider = GatewayProvider::TRANSIT;
         $config->acceptorConfig = new AcceptorConfig();
+        $config->acceptorConfig->cardDataSource = CardDataSource::INTERNET;
 
         if ($this->isAdmin()) {
             $config->acceptorConfig->cardDataSource = CardDataSource::MAIL;
