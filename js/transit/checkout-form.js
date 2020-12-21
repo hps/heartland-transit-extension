@@ -124,7 +124,6 @@ if (!String.prototype.trim) {
           '#secure-payment-field': {
             height: '40px',
             border: '1px solid silver',
-            'letter-spacing': '2.5px',
             width: '97.5%',
             'padding-left': '9px',
           },
