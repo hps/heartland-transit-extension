@@ -14,7 +14,7 @@ class Hps_Transit_Model_Observer
 
         Mage::helper('hps_transit/data')->configureSDK();
 
-        $response = ServicesContainer::instance()->getClient()->getTransactionKey();
+        $response = ServicesContainer::instance()->getClient('default')->getTransactionKey();
 
         error_log(print_r($response->transactionKey, true));
         Mage::getConfig()->saveConfig(sprintf(self::CONFIG_FORMAT, 'transaction_key'), $response->transactionKey);

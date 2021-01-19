@@ -22,7 +22,7 @@ class Hps_Transit_Block_Form extends Mage_Payment_Block_Form_Ccsave
     {
         Mage::helper('hps_transit/data')->configureSDK(true);
 
-        $manifest = ServicesContainer::instance()->getClient()->createManifest();
+        $manifest = ServicesContainer::instance()->getClient('default')->createManifest();
 
         return json_encode([
             'deviceId' => $this->getConfig('device_id_tsep'),

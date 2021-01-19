@@ -1,8 +1,8 @@
 <?php
 
-use GlobalPayments\Api\AcceptorConfig;
-use GlobalPayments\Api\ServicesConfig;
 use GlobalPayments\Api\ServicesContainer;
+use GlobalPayments\Api\ServiceConfigs\AcceptorConfig;
+use GlobalPayments\Api\ServiceConfigs\Gateways\TransitConfig;
 use GlobalPayments\Api\Entities\Enums\CardDataSource;
 use GlobalPayments\Api\Entities\Enums\Environment;
 use GlobalPayments\Api\Entities\Enums\GatewayProvider;
@@ -22,7 +22,7 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
 
     public function configureSDK($isTsep = false)
     {
-        $config = new ServicesConfig();
+        $config = new TransitConfig();
 
         $pairs = [
             'merchantId' => 'merchant_id',
@@ -44,7 +44,6 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
         }
 
         $config->environment = $this->getConfig('is_production') ? Environment::PRODUCTION : Environment::TEST;
-        $config->gatewayProvider = GatewayProvider::TRANSIT;
         $config->acceptorConfig = new AcceptorConfig();
         $config->acceptorConfig->cardDataSource = CardDataSource::INTERNET;
 
@@ -52,7 +51,7 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
             $config->acceptorConfig->cardDataSource = CardDataSource::MAIL;
         }
 
-        ServicesContainer::configure($config);
+        ServicesContainer::configureService($config);
     }
 
     public function getConfig($key)
