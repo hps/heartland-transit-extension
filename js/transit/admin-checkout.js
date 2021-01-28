@@ -15,6 +15,10 @@
       return;
     }
 
+    if (document.querySelector(window.TransITMagentoAdmin.options.iframeTargets.cardNumber + ' iframe') !== null) {
+      return;
+    }
+
     GlobalPayments.configure(window.TransITMagentoAdmin.options.credentials);
 
     window.TransITMagentoAdmin.cardForm = GlobalPayments.ui.form({
