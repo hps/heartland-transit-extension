@@ -94,6 +94,10 @@ $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow
             cardCvv: '#<?= $_code ?>_cc_cvv_iframe'
         }
     };
+
+    if (window.TransITMagentoAdmin.setupFields) {
+        window.TransITMagentoAdmin.setupFields();
+    }
 })();
 //]]>
 </script>
