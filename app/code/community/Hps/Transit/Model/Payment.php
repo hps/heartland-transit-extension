@@ -139,7 +139,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                 $builder = Transaction::fromId($payment->getCcTransId())->capture();
             } else {
                 $requestType = $capture ? 'charge' : 'authorize';
-                $builder = $cardOrToken->{$requestType}($amount)
+                $builder = $cardOrToken->{$requestType}(str_replace(',', '', (string) $amount))
                     ->withCurrency(strtolower($order->getBaseCurrencyCode()))
                     ->withClientTransactionId(time())
                     ->withAddress($address)
@@ -231,7 +231,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
         $customerId = $this->_getTxnCustomerId($order);
 
         try {
-            $refundResponse = Transaction::fromId($transactionId)->refund($amount)
+            $refundResponse = Transaction::fromId($transactionId)->refund(str_replace(',', '', (string) $amount))
                 ->withCurrency(strtolower($order->getBaseCurrencyCode()))
                 ->withDescription($memo)
                 ->withInvoiceNumber($invoiceNumber)
