@@ -8,6 +8,10 @@ $customerId = Mage::getSingleton('adminhtml/session_quote')->getCustomerId();
 $allow_card_saving = Mage::getModel('hps_transit/payment')->getConfigData('allow_card_saving', $storeId);
 ?>
 
+<style type="text/css">
+#payment_form_<?php echo $_code ?> iframe { min-height: 45px; }
+</style>
+
 <input id="<?php echo $_code ?>_payment_method" type="hidden" name="payment[method]" value="<?php echo $_code ?>" />
 <ul id="payment_form_<?php echo $_code ?>" class="form-list" style="display:none;">
     <?php if($allow_card_saving && count($customerStoredCards)): ?>
