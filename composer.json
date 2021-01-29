@@ -13,6 +13,6 @@
         "openmage-module"
     ],
     "require": {
-        "globalpayments/php-sdk": "^2.2"
+        "globalpayments/php-sdk": "dev-transit-amount-fix"
     }
 }
