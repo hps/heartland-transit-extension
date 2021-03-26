@@ -96,6 +96,12 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
     private function _authorize(Varien_Object $payment, $amount, $capture)
     {
         $this->getFraudSettings();
+        
+        $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
+        $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
+        
+        Mage::log(print_r($declinedAvsCodes, true));
+        Mage::log(print_r($declinedCvnCodes, true));
 
         /* @var $order Mage_Sales_Model_Order */
         $order = $payment->getOrder();
@@ -190,10 +196,25 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
                 return;
             }
+            
+            $status = self::STATUS_APPROVED;
+            //auto reversal incase of AVS/CVV decline
+            $avsCvvValidation = Mage::getStoreConfig('payment/hps_transit/avs_cvv_validation');
+            if ($response->responseCode === '00' && $avsCvvValidation === true) {   
+                if(!empty($response->avsResponseCode) || !empty($response->cvnResponseCode)){
+                    $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
+                    $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
+                    if(in_array($response->avsResponseCode, $declinedAvsCodes) ||                         
+                        in_array($response->cvnResponseCode, $declinedCvnCodes)){                 
+                            $reverseResponse = $cardOrToken->reverse($amount)->execute();   
+                            $status = self::STATUS_DECLINED;
+                    }
+                }
+            }
 
             $this->_debugChargeService();
             // \Hps_Transit_Model_Payment::closeTransaction
-            $this->closeTransaction($payment, $amount, $response);
+            $this->closeTransaction($payment, $amount, $response, $status);
 
             if ($multiToken) {
                 $this->saveMultiUseToken($response, $cardData, $customerId, $cardType);
@@ -319,12 +340,12 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
         if (property_exists($response, 'avsResultCode')) {
             $payment->setCcAvsStatus($response->avsResultCode);
-            $details['avs_response_code'] = $response->avsResultCode;
-            $details['avs_response_text'] = $response->avsResultText;
+            $details['avs_response_code'] = $response->avsResponseCode;
+            $details['avs_response_text'] = $response->avsResponseMessage;
         }
 
-        if (property_exists($response, 'cvvResultCode')) {
-            $details['cvv_response_code'] = $response->cvvResultCode;
+        if (property_exists($response, 'cavvResponseCode')) {
+            $details['cvv_response_code'] = $response->cavvResponseCode;
             $details['cvv_response_text'] = $response->cvvResultText;
         }
 
