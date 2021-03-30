@@ -96,12 +96,6 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
     private function _authorize(Varien_Object $payment, $amount, $capture)
     {
         $this->getFraudSettings();
-        
-        $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
-        $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
-        
-        Mage::log(print_r($declinedAvsCodes, true));
-        Mage::log(print_r($declinedCvnCodes, true));
 
         /* @var $order Mage_Sales_Model_Order */
         $order = $payment->getOrder();
@@ -168,13 +162,25 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             }
 
             $response = $builder->execute();
-
-            if ($response->responseCode !== '00' || $response->responseMessage === 'Partially Approved') {
+            
+            if ($response->responseCode !== '00') {
                 // TODO: move this
                 // $this->updateVelocity($e);
-
-                if ($response->responseCode === '10' || $response->responseMessage === 'Partially Approved') {
+                $status = self::STATUS_APPROVED;
+                if($response->responseCode === '10' || $response->responseMessage === 'Partially Approved'){
                     try { $response->void()->withDescription('POST_AUTH_USER_DECLINE')->execute(); } catch (\Exception $e) {}
+                } else {
+                    $avsCvvValidation = Mage::getStoreConfig('payment/hps_transit/avs_cvv_validation');
+                    if($avsCvvValidation === true &&
+                        (!empty($response->avsResponseCode) || !empty($response->cvnResponseCode))){
+                            $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
+                            $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
+                            if(in_array($response->avsResponseCode, $declinedAvsCodes) ||
+                                in_array($response->cvnResponseCode, $declinedCvnCodes)){
+                                    try { $cardOrToken->reverse($amount)->execute(); } catch (\Exception $e) {}
+                                    $status = self::STATUS_DECLINED;
+                            }
+                    } 
                 }
 
                 if (!$this->_allow_fraud || $response->responseCode !== 'FR') {
@@ -192,26 +198,11 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                     );
                 }
 
-                $this->closeTransaction($payment,$amount,$e);
+                $this->closeTransaction($payment,$amount,$response, $status);
 
                 return;
             }
             
-            $status = self::STATUS_APPROVED;
-            //auto reversal incase of AVS/CVV decline
-            $avsCvvValidation = Mage::getStoreConfig('payment/hps_transit/avs_cvv_validation');
-            if ($response->responseCode === '00' && $avsCvvValidation === true) {   
-                if(!empty($response->avsResponseCode) || !empty($response->cvnResponseCode)){
-                    $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
-                    $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
-                    if(in_array($response->avsResponseCode, $declinedAvsCodes) ||                         
-                        in_array($response->cvnResponseCode, $declinedCvnCodes)){                 
-                            $reverseResponse = $cardOrToken->reverse($amount)->execute();   
-                            $status = self::STATUS_DECLINED;
-                    }
-                }
-            }
-
             $this->_debugChargeService();
             // \Hps_Transit_Model_Payment::closeTransaction
             $this->closeTransaction($payment, $amount, $response, $status);

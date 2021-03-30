@@ -12,25 +12,13 @@ class Hps_Transit_Model_Source_CvvResultCodes
     {
         return array(
             array(
-                'value' => 'N',
-                'label' => 'Not Matching'
+                'value' => 'D2020',
+                'label' => 'CVV2 verification failed'
             ),
             array(
-                'value' => 'P',
-                'label' => 'Not Processed'
-            ),
-            array(
-                'value' => 'S',
-                'label' => 'Result not present'
-            ),
-            array(
-                'value' => 'U',
-                'label' => 'Issuer not certified'
-            ),
-            array(
-                'value' => '?',
-                'label' => 'CVV unrecognized'
-            ),
+                'value' => 'D2027',
+                'label' => 'AVS and CVV2 failed'
+            )
         );
     }
 }
