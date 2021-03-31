@@ -240,15 +240,7 @@
                             <show_in_store>1</show_in_store>
                             <depends><avs_cvv_validation>1</avs_cvv_validation></depends>
                             <comment><![CDATA[Select in what scenarios transaction needs to be reversed.]]></comment>
-                        </cvv_decline_codes>
-                        
-                        
-                        
-                        
-                        
-                        
-                        
-                        
+                        </cvv_decline_codes>                        
                         <!-- Misc. -->
                         <custom_message translate="label">
                             <label>Custom Error Message</label>
