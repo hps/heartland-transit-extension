@@ -163,12 +163,24 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
             $response = $builder->execute();
 
-            if ($response->responseCode !== '00' || $response->responseMessage === 'Partially Approved') {
+            if ($response->responseCode !== '00') {
                 // TODO: move this
                 // $this->updateVelocity($e);
-
-                if ($response->responseCode === '10' || $response->responseMessage === 'Partially Approved') {
+                $status = self::STATUS_APPROVED;
+                if($response->responseCode === '10' || $response->responseMessage === 'Partially Approved'){
                     try { $response->void()->withDescription('POST_AUTH_USER_DECLINE')->execute(); } catch (\Exception $e) {}
+                } else {
+                    $avsCvvValidation = Mage::getStoreConfig('payment/hps_transit/avs_cvv_validation');
+                    if($avsCvvValidation === true &&
+                        (!empty($response->avsResponseCode) || !empty($response->cvnResponseCode))){
+                            $declinedAvsCodes = explode(',', Mage::getStoreConfig('payment/hps_transit/avs_decline_codes'));
+                            $declinedCvnCodes = explode(',', Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes'));
+                            if(in_array($response->avsResponseCode, $declinedAvsCodes) ||
+                                in_array($response->cvnResponseCode, $declinedCvnCodes)){
+                                    try { $cardOrToken->reverse($amount)->execute(); } catch (\Exception $e) {}
+                                    $status = self::STATUS_DECLINED;
+                            }
+                    } 
                 }
 
                 if (!$this->_allow_fraud || $response->responseCode !== 'FR') {
@@ -186,14 +198,14 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                     );
                 }
 
-                $this->closeTransaction($payment,$amount,$e);
+                $this->closeTransaction($payment,$amount,$response, $status);
 
                 return;
             }
-
+            
             $this->_debugChargeService();
             // \Hps_Transit_Model_Payment::closeTransaction
-            $this->closeTransaction($payment, $amount, $response);
+            $this->closeTransaction($payment, $amount, $response, $status);
 
             if ($multiToken) {
                 $this->saveMultiUseToken($response, $cardData, $customerId, $cardType);
@@ -319,13 +331,13 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
 
         if (property_exists($response, 'avsResultCode')) {
             $payment->setCcAvsStatus($response->avsResultCode);
-            $details['avs_response_code'] = $response->avsResultCode;
-            $details['avs_response_text'] = $response->avsResultText;
+            $details['avs_response_code'] = $response->avsResponseCode;
+            $details['avs_response_text'] = $response->avsResponseMessage;
         }
 
-        if (property_exists($response, 'cvvResultCode')) {
-            $details['cvv_response_code'] = $response->cvvResultCode;
-            $details['cvv_response_text'] = $response->cvvResultText;
+        if (property_exists($response, 'cvnResponseCode')) {
+            $details['cvv_response_code'] = $response->cvnResponseCode;
+            $details['cvv_response_text'] = $response->cvnResponseMessage;
         }
 
         $info->setAdditionalData(serialize($details));

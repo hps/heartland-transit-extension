@@ -2,10 +2,10 @@
 
 use GlobalPayments\Api\ServicesContainer;
 use GlobalPayments\Api\ServiceConfigs\AcceptorConfig;
-use GlobalPayments\Api\ServiceConfigs\Gateways\TransitConfig;
 use GlobalPayments\Api\Entities\Enums\CardDataSource;
 use GlobalPayments\Api\Entities\Enums\Environment;
 use GlobalPayments\Api\Entities\Enums\GatewayProvider;
+use GlobalPayments\Api\ServiceConfigs\Gateways\TransitConfig;
 
 /**
  * @category   Hps
@@ -21,7 +21,7 @@ class Hps_Transit_Helper_Data extends Mage_Core_Helper_Abstract
     const CONFIG_FORMAT = 'payment/hps_transit/%s';
 
     public function configureSDK($isTsep = false)
-    {
+    {        
         $config = new TransitConfig();
 
         $pairs = [
