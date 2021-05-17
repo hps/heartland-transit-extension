@@ -162,7 +162,7 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             }
 
             $response = $builder->execute();
-            
+
             if ($response->responseCode !== '00') {
                 // TODO: move this
                 // $this->updateVelocity($e);
@@ -173,8 +173,8 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
                     $avsCvvValidation = Mage::getStoreConfig('payment/hps_transit/avs_cvv_validation');
                     if($avsCvvValidation === true &&
                         (!empty($response->avsResponseCode) || !empty($response->cvnResponseCode))){
-                            $declinedAvsCodes = Mage::getStoreConfig('payment/hps_transit/avs_decline_codes');
-                            $declinedCvnCodes = Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes');
+                            $declinedAvsCodes = explode(',', Mage::getStoreConfig('payment/hps_transit/avs_decline_codes'));
+                            $declinedCvnCodes = explode(',', Mage::getStoreConfig('payment/hps_transit/cvv_decline_codes'));
                             if(in_array($response->avsResponseCode, $declinedAvsCodes) ||
                                 in_array($response->cvnResponseCode, $declinedCvnCodes)){
                                     try { $cardOrToken->reverse($amount)->execute(); } catch (\Exception $e) {}
@@ -335,9 +335,9 @@ class Hps_Transit_Model_Payment extends Mage_Payment_Model_Method_Cc
             $details['avs_response_text'] = $response->avsResponseMessage;
         }
 
-        if (property_exists($response, 'cavvResponseCode')) {
-            $details['cvv_response_code'] = $response->cavvResponseCode;
-            $details['cvv_response_text'] = $response->cvvResultText;
+        if (property_exists($response, 'cvnResponseCode')) {
+            $details['cvv_response_code'] = $response->cvnResponseCode;
+            $details['cvv_response_text'] = $response->cvnResponseMessage;
         }
 
         $info->setAdditionalData(serialize($details));
