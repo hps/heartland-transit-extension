@@ -1,4 +1,4 @@
-## **This repository is no longer maintained. For the latest version of this plugin, visit us [here](https://commercemarketplace.adobe.com/realexpayments-module-payment).**
+## **This repository is no longer maintained. For the latest version of this plugin, visit us [here](https://commercemarketplace.adobe.com/realexpayments-module-payment-gateway.html).**
 
 ## TransIT Magento Payment Gateway
 
