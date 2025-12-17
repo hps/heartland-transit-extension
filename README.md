@@ -1,3 +1,5 @@
+## **This repository is no longer maintained. For the latest version of this plugin, visit us [here](https://commercemarketplace.adobe.com/realexpayments-module-payment).**
+
 ## TransIT Magento Payment Gateway
 
 This extension allows Magento to use the Heartland Payment Systems Gateway. All card data is tokenized using Heartland's single-use tokenization solution.
